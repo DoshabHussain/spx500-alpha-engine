@@ -1,0 +1,359 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SPX500 FORECASTING — GIT IGNORE RULES
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────
+# SECRETS & CREDENTIALS (CRITICAL — NEVER COMMIT)
+# ───────────────────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+service-account.json
+aws/credentials
+.aws/credentials
+
+# ───────────────────────────────────────────────────────────────────────────
+# DATA FILES (TOO LARGE FOR GIT)
+# ───────────────────────────────────────────────────────────────────────────
+data/
+runs/
+*.parquet
+*.csv
+*.json
+*.jsonl
+*.feather
+*.h5
+*.hdf5
+*.db
+*.sqlite
+*.sqlite3
+*.zip
+*.tar.gz
+spx500_final_submission.zip
+
+# Exception: Keep reference data and small fixtures
+!data/reference/
+!tests/fixtures/*.csv
+!tests/fixtures/*.json
+
+# ───────────────────────────────────────────────────────────────────────────
+# PYTHON
+# ───────────────────────────────────────────────────────────────────────────
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff (if ever used)
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff (if ever used)
+instance/
+.webassets-cache
+
+# Scrapy stuff (if ever used)
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+docs/.doctrees/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+# Exception: Keep example notebooks
+!notebooks/examples/*.ipynb
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# ───────────────────────────────────────────────────────────────────────────
+# MACHINE LEARNING
+# ───────────────────────────────────────────────────────────────────────────
+# Model artifacts (too large)
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pb
+*.tflite
+models/
+checkpoints/
+
+# Exception: Keep small baseline models
+!models/baseline/*.pkl
+
+# TensorBoard logs
+runs/tensorboard/
+logs/tensorboard/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Weights & Biases
+wandb/
+
+# ───────────────────────────────────────────────────────────────────────────
+# IDEs & EDITORS
+# ───────────────────────────────────────────────────────────────────────────
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ───────────────────────────────────────────────────────────────────────────
+# OPERATING SYSTEM
+# ───────────────────────────────────────────────────────────────────────────
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ───────────────────────────────────────────────────────────────────────────
+# DOCKER
+# ───────────────────────────────────────────────────────────────────────────
+docker-compose.override.yml
+.dockerignore
+
+# ───────────────────────────────────────────────────────────────────────────
+# LOGS & TEMPORARY FILES
+# ───────────────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.tmp
+*.temp
+tmp/
+temp/
+*.bak
+*.swp
+*.swo
+
+# ───────────────────────────────────────────────────────────────────────────
+# CLOUD & CI/CD
+# ───────────────────────────────────────────────────────────────────────────
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# CloudFormation
+*.cfn.yaml
+*.cfn.json
+
+# Kubernetes
+*.kubeconfig
+
+# ───────────────────────────────────────────────────────────────────────────
+# PROJECT-SPECIFIC
+# ───────────────────────────────────────────────────────────────────────────
+# Temporary analysis scripts
+scratch/
+sandbox/
+experiments/
+ad_hoc/
+
+# Large reports (commit summaries only)
+runs/reports/*.html
+runs/reports/*.pdf
+
+# Exception: Keep report templates
+!runs/reports/templates/
+
+# Cache directories
+.cache/
+cache/
+
+# ───────────────────────────────────────────────────────────────────────────
+# NOTES
+# ───────────────────────────────────────────────────────────────────────────
+# This .gitignore is comprehensive but not exhaustive
+# Add project-specific patterns as needed
+# Use git check-ignore -v <file> to debug ignored files
+# ═══════════════════════════════════════════════════════════════════════════

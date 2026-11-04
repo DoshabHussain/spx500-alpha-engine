@@ -1,0 +1,271 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# SPX500 FORECASTING — DEVELOPMENT CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════════
+# 
+# This configuration is optimized for local development:
+# - Smaller datasets for faster iteration
+# - Verbose logging for debugging
+# - Reduced API calls to save quota
+# - Disabled expensive operations
+#
+# Usage:
+#   python -m src.cli.ingest --config configs/dev.yaml
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────
+# ENVIRONMENT
+# ───────────────────────────────────────────────────────────────────────────
+environment:
+  name: development
+  timezone: America/New_York
+  log_level: DEBUG
+  
+# ───────────────────────────────────────────────────────────────────────────
+# DATA STORAGE
+# ───────────────────────────────────────────────────────────────────────────
+storage:
+  root_dir: ./data
+  runs_dir: ./runs
+  
+  # Partitioning strategy
+  partition_by:
+    - dt  # Date (YYYY-MM-DD)
+    - instrument  # Symbol (SPX, SPY, etc.)
+  
+  # File format
+  format: parquet
+  compression: snappy
+  
+  # Retention policy (development: keep less data)
+  retention_days:
+    raw: 90        # 3 months
+    aligned: 60    # 2 months
+    curated: 30    # 1 month
+    models: 30     # 1 month
+
+# ───────────────────────────────────────────────────────────────────────────
+# DATA SOURCES (Phase 1: Free sources only)
+# ───────────────────────────────────────────────────────────────────────────
+data_sources:
+  
+  # yfinance (free, 5-minute canonical intraday baseline)
+  yfinance:
+    enabled: true
+    symbols:
+      - SPY    # S&P 500 ETF (primary intraday liquidity proxy)
+      - QQQ    # Nasdaq ETF
+      - ^VIX   # VIX Index
+    interval: 5m
+    period: 60d # Development: 60 trading days of 5m intraday history
+    rate_limit:
+      calls_per_hour: 2000
+      delay_seconds: 0.5
+    retry:
+      max_attempts: 3
+      backoff_factor: 2
+  
+  # FRED (free economic data)
+  fred:
+    enabled: true
+    series:
+      - DGS10     # 10-Year Treasury Yield
+      - DGS2      # 2-Year Treasury Yield
+      - VIXCLS    # VIX Close
+      - T10Y2Y    # 10Y-2Y Spread
+    update_frequency: daily
+    lookback_days: 365  # Development: 1 year
+    rate_limit:
+      calls_per_minute: 120
+
+# ───────────────────────────────────────────────────────────────────────────
+# TEMPORAL RESOLUTION
+# ───────────────────────────────────────────────────────────────────────────
+temporal:
+  # Canonical time grids
+  grids:
+    - name: grid_1m
+      interval: 1min
+      enabled: false  # Development: disable 1-min (too much data)
+    
+    - name: grid_5m
+      interval: 5min
+      enabled: true   # Primary grid for development
+    
+    - name: grid_30m
+      interval: 30min
+      enabled: true
+  
+  # Trading sessions (NYSE Regular Trading Hours)
+  sessions:
+    market_open: "09:30"
+    market_close: "16:00"
+    timezone: America/New_York
+    
+    # Extended hours (Phase 7+)
+    extended_hours:
+      enabled: false
+      premarket_open: "04:00"
+      aftermarket_close: "20:00"
+
+# ───────────────────────────────────────────────────────────────────────────
+# FEATURE ENGINEERING (Phase 3)
+# ───────────────────────────────────────────────────────────────────────────
+features:
+  # Feature groups (referenced from features.yaml)
+  enabled_groups:
+    - price_action     # OHLCV, returns, volatility
+    - technical        # RSI, MACD, Bollinger Bands
+    - volume           # Volume spikes, VWAP
+    - options          # Net Dealer GEX, 0DTE flow imbalance
+    - macro            # VIX term structure, yields, regime tags
+  
+  # Lookback windows (in bars)
+  windows:
+    short: 20    # ~1.5 hours on 5-min grid
+    medium: 78   # ~1 trading day
+    long: 390    # ~5 trading days
+  
+  # Feature selection
+  max_features: 50  # Development: limit feature count
+  
+  # Validation
+  check_leakage: true
+  check_stability: true
+
+# ───────────────────────────────────────────────────────────────────────────
+# LABELS / TARGETS (Phase 3)
+# ───────────────────────────────────────────────────────────────────────────
+labels:
+  # Forward-looking horizons
+  horizons:
+    - name: 30m
+      periods: 6        # 6 * 5min = 30 minutes
+      target_type: directional  # up/down/neutral
+      thresholds:
+        up: 0.001       # 10 basis points
+        down: -0.001
+    
+    - name: 1h
+      periods: 12       # 12 * 5min = 1 hour
+      target_type: directional
+      thresholds:
+        up: 0.002
+        down: -0.002
+  
+  # Data leakage prevention
+  embargo_periods: 2  # Skip 2 bars after label creation
+  purge_overlap: true
+
+# ───────────────────────────────────────────────────────────────────────────
+# DATA QUALITY (Phase 2)
+# ───────────────────────────────────────────────────────────────────────────
+quality:
+  # Freshness checks
+  max_staleness_minutes: 60
+  
+  # Missingness thresholds
+  max_missing_pct:
+    critical: 0.05   # 5% missing = fail
+    warning: 0.02    # 2% missing = warn
+  
+  # Anomaly detection
+  anomaly_detection:
+    enabled: true
+    methods:
+      - zscore        # Z-score outliers
+      - iqr           # Interquartile range
+    thresholds:
+      price_spike: 0.05      # 5% move in one bar
+      volume_spike: 10.0     # 10x average volume
+  
+  # Monitoring intervals
+  check_frequency: 1h  # Development: check every hour
+
+# ───────────────────────────────────────────────────────────────────────────
+# LOGGING
+# ───────────────────────────────────────────────────────────────────────────
+logging:
+  level: DEBUG
+  format: json  # Structured logging
+  
+  handlers:
+    console:
+      enabled: true
+      level: DEBUG
+    
+    file:
+      enabled: true
+      level: INFO
+      path: runs/logs
+      rotation: daily
+      retention_days: 7  # Development: keep 1 week
+  
+  # Log specific modules
+  loggers:
+    src.ingestion: DEBUG
+    src.processing: DEBUG
+    src.core: INFO
+    src.storage: INFO
+
+# ───────────────────────────────────────────────────────────────────────────
+# PERFORMANCE
+# ───────────────────────────────────────────────────────────────────────────
+performance:
+  # Parallelization
+  num_workers: 2  # Development: limit to 2 cores
+  
+  # Memory management
+  chunk_size: 10000  # Rows per chunk
+  max_memory_gb: 8   # Development: assume 8GB available
+  
+  # Caching
+  cache:
+    enabled: true
+    backend: local  # Development: local filesystem
+    ttl_seconds: 3600  # 1 hour
+
+# ───────────────────────────────────────────────────────────────────────────
+# DEVELOPMENT-SPECIFIC SETTINGS
+# ───────────────────────────────────────────────────────────────────────────
+dev:
+  # Quick iteration mode
+  quick_mode:
+    enabled: true
+    max_rows: 50000  # Limit dataset size for fast testing
+    skip_validation: false  # Still validate, but on smaller data
+  
+  # Debugging aids
+  debug:
+    save_intermediate: true  # Save intermediate pipeline outputs
+    profiling: false         # CPU/memory profiling (slow)
+    raise_on_warning: false  # Don't fail on warnings
+  
+  # Testing
+  test_mode:
+    enabled: false
+    mock_apis: false
+    fixed_seed: 42
+
+# ───────────────────────────────────────────────────────────────────────────
+# FEATURE FLAGS (Phase-gated)
+# ───────────────────────────────────────────────────────────────────────────
+features_flags:
+  enable_streaming: false      # Phase 7+
+  enable_ml_models: false      # Phase 4+
+  enable_cloud_storage: false  # Phase 7+
+  enable_monitoring: true      # Basic monitoring in dev
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NOTES
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# This config is designed for rapid local development:
+# - Small datasets (1 year instead of 5+ years)
+# - Fewer features (50 max)
+# - Verbose logging (DEBUG level)
+# - Disabled expensive operations (1-min grid, extended hours)
+# - Short retention (30-90 days instead of years)
+#
+# For production, see configs/prod.yaml
+#
+# ═══════════════════════════════════════════════════════════════════════════

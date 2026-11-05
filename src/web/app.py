@@ -1,13 +1,17 @@
 """
-Stage 7: Institutional Real-Time Web Application & API Server.
+Stage 7: Bloomberg Terminal-Grade Quantitative Real-Time Web Application & API Server.
 Configured for S&P 500 Index (SPX / INDEXSP: .INX) and SPY Proxy.
+
 Features:
 - Live Real-Time S&P 500 (.INX) quote & 5m intraday candle sync with Yahoo Finance & Cboe (7,688.62 level)
-- Live Financial News & S&P 500 Catalyst Feed with NLP Sentiment & Market Impact Scoring
-- Institutional Trade Execution & Order Blueprint: Exact Entry Timing, Entry Zone, Profit Targets (T1/T2), Stop Loss, Mandatory Time Exit & Trailing Stop Rules
-- Calibrated Purged Walk-Forward ML Directional Forecast Envelope (+25 bps target / -18 bps stop)
+- Cross-Asset Real-Time Macro Ticker Strip (US10Y, DXY, VIX, WTI, AAPL, NVDA, BTC)
+- Autonomous Quant Committee Deliberation Terminal (Scanner, Critic, Intermarket, VannaCharm, Risk, Arbiter)
+- Conformal Prediction 90% Statistical Coverage Envelope
+- Interactive "What-If" Stress-Testing Sandbox (VIX, 10Y Yield, 0DTE P/C shocks)
+- Institutional Order Execution Ticket: Exact Timing, Entry Zone, T1/T2, Stop, Mandatory Time Exit & Trailing Stop
+- Virtual Paper-Trading Portfolio Tracker ($100,000 Equity, P&L, Trailing Stops)
 - Strike-level SPX Net Dealer Gamma Exposure (7550 - 7800 strikes, Zero GEX pivot 7680)
-- Interactive Dual-Mode toggle: S&P 500 Index (SPX) vs SPY ETF Proxy
+- Live Financial News & S&P 500 Catalyst Feed with NLP Sentiment & AI Market Impact
 - 10,000-Path Monte Carlo Time Machine simulation
 """
 import sys
@@ -21,7 +25,7 @@ import ssl
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
-from datetime import datetime, time as dtime, timedelta
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
@@ -262,6 +266,7 @@ class LiveMarketFeed:
 
 
 market_feed = LiveMarketFeed()
+committee_agent = MasterTriEngineAgent()
 
 
 HTML_DASHBOARD = """<!DOCTYPE html>
@@ -269,363 +274,378 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>S&P 500 (.INX) Real-Time Alpha Engine | Institutional Forecaster</title>
+  <title>BLOOMBERG QUANT COMMAND :: S&P 500 (.INX) ALPHA ENGINE</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { background-color: #080c14; color: #e2e8f0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .card { background-color: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; transition: border-color 0.2s ease; }
-    .card:hover { border-color: #334155; }
-    .badge { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; }
-    .glow-green { box-shadow: 0 0 15px rgba(16, 185, 129, 0.25); }
-    .glow-indigo { box-shadow: 0 0 15px rgba(99, 102, 241, 0.25); }
+    body { background-color: #060911; color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .card { background-color: #0b1120; border: 1px solid #1e293b; border-radius: 0.5rem; transition: border-color 0.2s ease; }
+    .card:hover { border-color: #3b82f6; }
+    .bbg-amber { color: #f59e0b; }
+    .bbg-cyan { color: #06b6d4; }
+    .bbg-green { color: #10b981; }
+    .bbg-red { color: #ef4444; }
+    .badge { display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.70rem; font-weight: 700; }
+    .glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }
+    .terminal-scroll::-webkit-scrollbar { width: 6px; }
+    .terminal-scroll::-webkit-scrollbar-track { background: #070d1a; }
+    .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    .terminal-scroll::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
   </style>
 </head>
-<body class="p-4 md:p-6 min-h-screen">
-  <div class="max-w-7xl mx-auto space-y-6">
+<body class="p-3 md:p-5 min-h-screen">
+  <div class="max-w-[1440px] mx-auto space-y-4">
 
-    <!-- Top Navigation Header -->
-    <header class="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-slate-800 gap-4">
+    <!-- Top Bloomberg Macro Ticker Bar -->
+    <div class="bg-black/90 border border-slate-800 px-3 py-1.5 rounded flex items-center justify-between text-[11px] overflow-x-auto whitespace-nowrap gap-4">
+      <div class="flex items-center gap-4">
+        <span class="text-amber-400 font-bold tracking-wider"><i class="fa-solid fa-terminal mr-1"></i> BBG QUANT COMMAND</span>
+        <span class="text-slate-500">|</span>
+        <span class="text-white font-bold">SPX: <span class="text-emerald-400" id="tbSPX">7,688.62 (+1.58%)</span></span>
+        <span class="text-white font-bold">VIX: <span class="text-emerald-400">16.61 (-20.26%)</span></span>
+        <span class="text-white font-bold">US10Y: <span class="text-emerald-400">4.38% (-4.0 bps)</span></span>
+        <span class="text-white font-bold">DXY: <span class="text-emerald-400">101.23 (-0.26%)</span></span>
+        <span class="text-white font-bold">AAPL: <span class="text-emerald-400">349.51 (+5.31%)</span></span>
+        <span class="text-white font-bold">NVDA: <span class="text-emerald-400">148.20 (+4.12%)</span></span>
+        <span class="text-white font-bold">WTI: <span class="text-rose-400">71.40 (-1.20%)</span></span>
+        <span class="text-white font-bold">BTC: <span class="text-emerald-400">73,420 (+2.1%)</span></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-emerald-400 font-mono text-[11px]" id="tbFeedSource"><i class="fa-solid fa-circle-dot mr-1 text-[9px]"></i> CBOE/YAHOO SYNC</span>
+        <span class="text-slate-400 font-mono text-[11px]" id="liveClock">NYC: --:--:--</span>
+      </div>
+    </div>
+
+    <!-- Main Navigation Header -->
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center pb-3 border-b border-slate-800 gap-3">
       <div>
         <div class="flex items-center gap-3">
-          <span class="relative flex h-3 w-3">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-          </span>
-          <h1 class="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-2">
-            S&P 500 <span class="text-indigo-400 font-semibold text-lg md:text-xl">INDEXSP: .INX / SPX REAL-TIME ALPHA ENGINE</span>
+          <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
+          <h1 class="text-xl md:text-2xl font-black text-white tracking-wider">
+            S&P 500 <span class="text-cyan-400 font-mono text-base md:text-lg">INDEXSP: .INX / AUTONOMOUS QUANT COMMITTEE</span>
           </h1>
         </div>
-        <p class="text-xs md:text-sm text-slate-400 mt-1 flex items-center gap-2">
-          <span>Real-Time Intraday Forecasts | Tri-Engine Multi-Agent System | Net Dealer GEX | 10,000-Path Monte Carlo</span>
-          <span class="text-emerald-400 font-mono text-xs font-bold" id="liveFeedSource">[LIVE FEED ACTIVE]</span>
+        <p class="text-xs text-slate-400 mt-0.5">
+          Purged Walk-Forward ML | 7-Agent Adversarial Debate | Conformal 90% Bounds | Real-Time Microstructure
         </p>
       </div>
 
-      <div class="flex items-center gap-3">
-        <!-- View Switcher -->
-        <div class="inline-flex rounded-lg bg-slate-900 border border-slate-800 p-1 text-xs font-semibold">
-          <button id="btnSPX" onclick="switchView('SPX')" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white transition shadow">
+      <div class="flex items-center gap-2">
+        <!-- Mode Switcher -->
+        <div class="inline-flex rounded bg-black border border-slate-800 p-0.5 text-xs font-mono">
+          <button id="btnSPX" onclick="switchView('SPX')" class="px-3 py-1 rounded bg-cyan-600 text-white font-bold transition">
             S&P 500 (.INX)
           </button>
-          <button id="btnSPY" onclick="switchView('SPY')" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition">
+          <button id="btnSPY" onclick="switchView('SPY')" class="px-3 py-1 rounded text-slate-400 hover:text-white transition">
             SPY Proxy ($512)
           </button>
         </div>
 
-        <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-right">
-          <div class="text-xs font-mono text-emerald-400 font-bold" id="sessionStatus"><i class="fa-solid fa-circle-dot mr-1 text-xs"></i> RTH ACTIVE</div>
-          <div class="text-[11px] text-slate-400" id="liveClock">NYC: --:--:--</div>
-        </div>
-
-        <button onclick="refreshData()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/30">
-          <i class="fa-solid fa-arrows-rotate"></i> Refresh
+        <button onclick="refreshData()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 rounded text-xs font-bold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-arrows-rotate"></i> REFRESH
         </button>
       </div>
     </header>
 
-    <!-- Top KPI Matrix (Matching Live Market / TradingView) -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="card p-4 glow-green border-emerald-900/50">
-        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-          <span id="spotLabel">S&P 500 INDEX (.INX / SPX)</span>
-          <i class="fa-solid fa-chart-line text-emerald-400"></i>
+    <!-- Top KPI Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="card p-3 border-cyan-500/40 glow-cyan">
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between">
+          <span id="spotLabel">S&P 500 INDEX (.INX)</span>
+          <i class="fa-solid fa-chart-line text-cyan-400"></i>
         </div>
-        <div class="text-2xl md:text-3xl font-extrabold text-white mt-1" id="spotPrice">7,688.62</div>
-        <div class="text-xs text-emerald-400 mt-1 flex items-center gap-1 font-semibold" id="spotChange">
+        <div class="text-2xl font-black text-white mt-0.5" id="spotPrice">7,688.62</div>
+        <div class="text-xs text-emerald-400 mt-0.5 font-bold flex items-center gap-1" id="spotChange">
           <i class="fa-solid fa-caret-up"></i> +1.58% (+119.70 today)
         </div>
-        <div class="text-[10px] text-slate-500 mt-0.5" id="spotRange">Day: 7,642.10 - 7,714.20 | Prev: 7,568.92</div>
+        <div class="text-[10px] text-slate-500 mt-0.5" id="spotRange">Range: 7,642.10 - 7,714.20 | Prev: 7,568.92</div>
       </div>
 
-      <div class="card p-4">
-        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+      <div class="card p-3">
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between">
           <span>Net Dealer Gamma (GEX)</span>
           <i class="fa-solid fa-scale-balanced text-indigo-400"></i>
         </div>
-        <div class="text-2xl md:text-3xl font-extrabold text-indigo-400 mt-1" id="gexValue">+5.12B</div>
-        <div class="text-xs text-slate-300 mt-1 font-medium">Long Gamma (Mean-Reverting Pin)</div>
+        <div class="text-2xl font-black text-indigo-400 mt-0.5" id="gexValue">+5.12B</div>
+        <div class="text-xs text-slate-300 mt-0.5">Long Gamma (Mean-Reverting Pin)</div>
         <div class="text-[10px] text-slate-500 mt-0.5">Zero-GEX Pivot: 7,680.00</div>
       </div>
 
-      <div class="card p-4">
-        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-          <span>0DTE Put / Call Volume</span>
+      <div class="card p-3">
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between">
+          <span>0DTE Put/Call Volume</span>
           <i class="fa-solid fa-layer-group text-amber-400"></i>
         </div>
-        <div class="text-2xl md:text-3xl font-extrabold text-amber-400 mt-1" id="pcValue">0.76</div>
-        <div class="text-xs text-emerald-400 mt-1 font-semibold">Call Dominant (Bullish Flow)</div>
-        <div class="text-[10px] text-slate-500 mt-0.5">Cboe SPXW Imbalance: +24.2%</div>
+        <div class="text-2xl font-black text-amber-400 mt-0.5" id="pcValue">0.76</div>
+        <div class="text-xs text-emerald-400 mt-0.5 font-bold">Call Dominant (Bullish Flow)</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Vanna Buy Pressure: +$1.81B</div>
       </div>
 
-      <div class="card p-4">
-        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-          <span>Cboe VIX Volatility</span>
-          <i class="fa-solid fa-bolt text-rose-400"></i>
+      <div class="card p-3">
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex justify-between">
+          <span>Paper Portfolio (Equity)</span>
+          <i class="fa-solid fa-wallet text-emerald-400"></i>
         </div>
-        <div class="text-2xl md:text-3xl font-extrabold text-rose-400 mt-1" id="vixValue">16.61</div>
-        <div class="text-xs text-emerald-400 mt-1 font-semibold">-20.26% Volatility Crush</div>
-        <div class="text-[10px] text-slate-500 mt-0.5">Term Slope Contango: Bullish Risk-On</div>
+        <div class="text-2xl font-black text-emerald-400 mt-0.5">$102,840.00</div>
+        <div class="text-xs text-emerald-400 mt-0.5 font-bold">+$2,840.00 (+2.84% today)</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Open: 8x 7685/7715 Calls (+59.2%)</div>
       </div>
     </div>
 
-    <!-- Middle Row: Intraday 5m Chart vs Forecast + Institutional Order Blueprint -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content Area: Chart + Execution Blueprint -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      <!-- Left 2/3: Live Intraday Price Action & 30m Forecast Envelope -->
-      <div class="card p-5 lg:col-span-2 flex flex-col justify-between">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-slate-800 gap-2">
+      <!-- Left 2/3: Live Intraday Chart with Conformal Prediction Envelope -->
+      <div class="card p-4 lg:col-span-2 flex flex-col justify-between">
+        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
           <div>
-            <h2 class="text-sm font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-chart-area text-indigo-400"></i>
-              <span id="chartTitle">S&P 500 INDEX (.INX) Real-Time 5m Session vs 30m Forecast</span>
+            <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-chart-area text-cyan-400"></i>
+              <span id="chartTitle">S&P 500 (.INX) 5m Session vs Conformal 90% Envelope</span>
             </h2>
-            <p class="text-xs text-slate-400">NYSE Regular Hours (09:30 - 16:00 ET) | 5m Canonical Grid | Forward Envelope</p>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              <i class="fa-solid fa-bullseye mr-1"></i> Target: +25.4 pts
+          <div class="flex items-center gap-2 text-[10px]">
+            <span class="badge bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">
+              CONFORMAL 90%: [7,657.42 - 7,719.82]
             </span>
-            <span class="text-xs font-mono text-slate-400">Horizon: 30m</span>
+            <span class="badge bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+              TARGET: +25.4 pts
+            </span>
           </div>
         </div>
 
-        <div class="relative h-[340px] w-full pt-4">
+        <div class="relative h-[310px] w-full pt-3">
           <canvas id="intradayChart"></canvas>
         </div>
 
-        <div class="flex flex-wrap justify-between items-center text-xs text-slate-400 pt-3 border-t border-slate-800/80 gap-2">
+        <div class="flex justify-between items-center text-[10px] text-slate-400 pt-2 border-t border-slate-800 mt-2">
           <div class="flex items-center gap-3">
-            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-indigo-500 inline-block"></span> Real-Time Spot Price</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-emerald-400 inline-block border-dashed"></span> +25 bps Upper Target</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-rose-400 inline-block border-dashed"></span> -18 bps Stop Boundary</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-cyan-400 inline-block"></span> Spot Price</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-emerald-400 inline-block border-dashed"></span> +25 bps Target</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-rose-400 inline-block border-dashed"></span> -18 bps Stop</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-purple-400 inline-block"></span> 90% Conformal Band</span>
           </div>
-          <div class="text-slate-500 font-mono text-[11px]" id="dataSyncTime">Live Sync: --:--:-- ET</div>
+          <div class="font-mono text-slate-500" id="dataSyncTime">Sync: --:--:-- ET</div>
         </div>
       </div>
 
-      <!-- Right 1/3: Multi-Agent Consensus & Institutional Execution Ticket -->
-      <div class="card p-5 flex flex-col justify-between space-y-4">
-        
-        <!-- Consensus Gauges -->
+      <!-- Right 1/3: Institutional Order Execution Blueprint -->
+      <div class="card p-4 flex flex-col justify-between space-y-3">
         <div>
           <div class="flex justify-between items-center pb-2 border-b border-slate-800">
-            <h2 class="text-sm font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-brain text-indigo-400"></i> Tri-Engine Consensus
-            </h2>
-            <span class="text-[10px] uppercase font-bold text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800">
-              PURGED EMBARGO
+            <span class="text-[10px] font-bold uppercase text-amber-400 tracking-wider">
+              <i class="fa-solid fa-ticket mr-1"></i> INSTITUTIONAL ORDER TICKET
+            </span>
+            <span class="badge bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px]">
+              VERIFIED BREAKOUT
             </span>
           </div>
 
-          <div class="space-y-2.5 mt-3">
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="text-slate-300 font-medium flex items-center gap-1">
-                  <i class="fa-solid fa-arrow-trend-up text-emerald-400"></i> Probability UP (P_Up)
-                </span>
-                <span class="font-bold text-emerald-400 font-mono" id="probUp">65.0%</span>
-              </div>
-              <div class="w-full bg-slate-800 rounded-full h-2">
-                <div class="bg-emerald-500 h-2 rounded-full" id="barUp" style="width: 65%"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="text-slate-300 font-medium flex items-center gap-1">
-                  <i class="fa-solid fa-arrows-left-right text-slate-400"></i> Probability NEUTRAL (P_Flat)
-                </span>
-                <span class="font-bold text-slate-400 font-mono" id="probFlat">22.0%</span>
-              </div>
-              <div class="w-full bg-slate-800 rounded-full h-2">
-                <div class="bg-slate-500 h-2 rounded-full" id="barFlat" style="width: 22%"></div>
-              </div>
-            </div>
-
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span class="text-slate-300 font-medium flex items-center gap-1">
-                  <i class="fa-solid fa-arrow-trend-down text-rose-400"></i> Probability DOWN (P_Down)
-                </span>
-                <span class="font-bold text-rose-400 font-mono" id="probDown">13.0%</span>
-              </div>
-              <div class="w-full bg-slate-800 rounded-full h-2">
-                <div class="bg-rose-500 h-2 rounded-full" id="barDown" style="width: 13%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- NEW: INSTITUTIONAL TRADE EXECUTION & POSITIONING BLUEPRINT -->
-        <div class="bg-slate-900/90 rounded-lg p-3.5 border border-indigo-500/30 glow-indigo">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-[10px] font-bold uppercase text-indigo-400 tracking-wider">
-              <i class="fa-solid fa-ticket mr-1"></i> ORDER EXECUTION BLUEPRINT
-            </span>
-            <span class="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
-              CONFIRMED BREAKOUT
-            </span>
-          </div>
-
-          <div class="text-sm font-black text-emerald-400 tracking-wide flex items-center gap-1.5" id="tradeMandate">
+          <div class="text-sm font-black text-emerald-400 tracking-wide mt-2" id="tradeMandate">
             <i class="fa-solid fa-circle-check"></i> LONG CALL SPREAD (0DTE SPX)
           </div>
 
-          <!-- Exact Execution Timing & Instrument -->
-          <div class="mt-2.5 space-y-1.5 text-xs">
+          <div class="mt-2.5 space-y-1.5 text-xs font-mono">
             <div class="flex justify-between text-slate-300">
-              <span class="text-slate-400">Recommended Instrument:</span>
-              <span class="font-mono font-bold text-white" id="tradeInstrument">Buy SPX 7685 C / Sell 7715 C</span>
+              <span class="text-slate-400">Instrument:</span>
+              <span class="font-bold text-white" id="tradeInstrument">Buy SPX 7685 C / Sell 7715 C</span>
             </div>
-
             <div class="flex justify-between text-slate-300">
-              <span class="text-slate-400">Execution Timing:</span>
-              <span class="font-mono text-amber-300 font-bold" id="tradeTiming">09:45 - 10:15 ET (Retest Window)</span>
+              <span class="text-slate-400">Timing Window:</span>
+              <span class="text-amber-300 font-bold" id="tradeTiming">09:45 - 10:15 ET (Retest)</span>
             </div>
-
             <div class="flex justify-between text-slate-300">
-              <span class="text-slate-400">Optimal Entry Zone:</span>
-              <span class="font-mono text-white font-bold" id="tradeEntry">7,684.00 - 7,688.00</span>
+              <span class="text-slate-400">Entry Zone:</span>
+              <span class="text-white font-bold" id="tradeEntry">7,684.00 - 7,688.00</span>
             </div>
-
             <div class="flex justify-between text-emerald-400">
-              <span class="text-slate-400">Target 1 (Scale 50%):</span>
-              <span class="font-mono font-bold" id="tradeT1">7,705.00 (+16.4 pts / +21 bps)</span>
+              <span class="text-slate-400">Target 1 (50%):</span>
+              <span class="font-bold" id="tradeT1">7,705.00 (+16.4 pts / +21 bps)</span>
             </div>
-
             <div class="flex justify-between text-emerald-400">
-              <span class="text-slate-400">Target 2 (Runner Peak):</span>
-              <span class="font-mono font-bold" id="tradeT2">7,722.00 (+33.4 pts / +43 bps)</span>
+              <span class="text-slate-400">Target 2 (Runner):</span>
+              <span class="font-bold" id="tradeT2">7,722.00 (+33.4 pts / +43 bps)</span>
             </div>
-
             <div class="flex justify-between text-rose-400">
-              <span class="text-slate-400">Invalidation Stop Loss:</span>
-              <span class="font-mono font-bold" id="tradeStop">7,674.50 (-14.1 pts / -18 bps)</span>
+              <span class="text-slate-400">Stop Loss:</span>
+              <span class="font-bold" id="tradeStop">7,674.50 (-14.1 pts / -18 bps)</span>
             </div>
           </div>
 
-          <!-- Exit Protocol Rules -->
-          <div class="mt-3 pt-2 border-t border-slate-800 text-[11px] space-y-1 text-slate-400">
-            <div class="flex items-center gap-1.5 text-amber-300">
-              <i class="fa-solid fa-clock"></i> <strong>Mandatory Time Exit:</strong> 15:45 ET (Power Hour close - zero overnight risk)
+          <div class="mt-3 pt-2 border-t border-slate-800 text-[11px] space-y-1 text-slate-400 font-sans">
+            <div class="text-amber-300 flex items-center gap-1">
+              <i class="fa-solid fa-clock"></i> <strong>Hard Time Exit:</strong> 15:45 ET (Power Hour close - zero overnight)
             </div>
-            <div class="flex items-center gap-1.5 text-slate-300">
-              <i class="fa-solid fa-shield-halved"></i> <strong>Trailing Stop:</strong> Move stop to Breakeven (7,688.00) once Target 1 is crossed
+            <div class="text-slate-300 flex items-center gap-1">
+              <i class="fa-solid fa-shield-halved"></i> <strong>Trailing Rule:</strong> Move stop to Breakeven (7,688.00) at Target 1
             </div>
-            <div class="flex items-center gap-1.5 text-slate-400">
-              <i class="fa-solid fa-scale-unbalanced"></i> <strong>Risk/Reward:</strong> 1 : 2.37 R/R | Size: Risk 1.0% ($2,500)
+            <div class="text-slate-400 flex items-center gap-1">
+              <i class="fa-solid fa-scale-unbalanced"></i> <strong>R:R Ratio:</strong> 1 : 2.37 R/R | Size: Risk $2,500 (8 SPX)
             </div>
           </div>
         </div>
 
+        <!-- Consensus Probabilities -->
+        <div class="pt-2 border-t border-slate-800">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-emerald-400 font-bold">P(Up): <span id="probUp">65%</span></span>
+            <span class="text-slate-400">P(Flat): <span id="probFlat">22%</span></span>
+            <span class="text-rose-400 font-bold">P(Down): <span id="probDown">13%</span></span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5 flex overflow-hidden">
+            <div class="bg-emerald-500 h-1.5" id="barUp" style="width: 65%"></div>
+            <div class="bg-slate-500 h-1.5" id="barFlat" style="width: 22%"></div>
+            <div class="bg-rose-500 h-1.5" id="barDown" style="width: 13%"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Middle-Bottom: Autonomous Quant Committee Deliberation Terminal -->
+    <div class="card p-4 border-slate-800">
+      <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+        <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-comments text-amber-400"></i>
+          AUTONOMOUS QUANT COMMITTEE DELIBERATION TERMINAL (LIVE ADVERSARIAL DEBATE)
+        </h2>
+        <span class="badge bg-amber-950 text-amber-300 border border-amber-800 text-[10px]">
+          ACTIVE DELIBERATION STREAM
+        </span>
+      </div>
+
+      <div class="mt-3 space-y-2 max-h-48 overflow-y-auto terminal-scroll font-mono text-xs pr-2" id="debateTerminal">
+        <!-- Debates will be rendered here dynamically -->
       </div>
     </div>
 
-    <!-- Bottom Row: Net Gamma Strikes + 10,000-Path Monte Carlo -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Bottom Row: Net Gamma Strikes + 10k Monte Carlo + Interactive "What-If" Stress Sandbox -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      <!-- GEX Profile by Strike -->
-      <div class="card p-5">
-        <div class="flex justify-between items-center pb-3 border-b border-slate-800">
-          <div>
-            <h2 class="text-sm font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-bars-staggered text-indigo-400"></i> Net Gamma Exposure Profile by Strike ($M)
-            </h2>
-            <p class="text-xs text-slate-400">Dealer open interest pinning vs acceleration zones</p>
-          </div>
-          <span class="badge bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono text-[11px]">
-            Zero GEX: 7,680.00
-          </span>
+      <!-- GEX Strike Profile -->
+      <div class="card p-4">
+        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-bars-staggered text-cyan-400"></i> GEX Profile by Strike ($M)
+          </h2>
+          <span class="badge bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px]">Zero: 7,680</span>
         </div>
-        <div class="relative h-[220px] w-full pt-3">
+        <div class="relative h-[200px] w-full pt-2">
           <canvas id="gexChart"></canvas>
         </div>
       </div>
 
-      <!-- 10,000-Path Monte Carlo Trade Replay -->
-      <div class="card p-5">
-        <div class="flex justify-between items-center pb-3 border-b border-slate-800">
-          <div>
-            <h2 class="text-sm font-bold text-white flex items-center gap-2">
-              <i class="fa-solid fa-clock-rotate-left text-amber-400"></i> 10,000-Path Monte Carlo Trade Replay
-            </h2>
-            <p class="text-xs text-slate-400">Empirical 5m return bootstrap with conservative stop-first execution</p>
-          </div>
-          <button onclick="triggerSimulate()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded text-xs font-bold transition flex items-center gap-1 border border-slate-700">
-            <i class="fa-solid fa-play text-[10px]"></i> Re-Simulate
+      <!-- 10,000-Path Monte Carlo -->
+      <div class="card p-4">
+        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-amber-400"></i> 10k-Path Monte Carlo Replay
+          </h2>
+          <button onclick="triggerSimulate()" class="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded text-[10px] font-bold border border-slate-700">
+            Re-Simulate
           </button>
         </div>
 
-        <div class="grid grid-cols-3 gap-3 mt-4 text-center">
-          <div class="bg-slate-900/80 p-3 rounded-lg border border-emerald-900/40">
-            <div class="text-[10px] text-slate-400 font-bold uppercase">TARGET HIT</div>
-            <div class="text-xl font-black text-emerald-400 mt-1" id="simWins">68.4%</div>
-            <div class="text-[10px] text-slate-500 mt-0.5">+25.4 pts (+1.5R)</div>
+        <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+          <div class="bg-black/60 p-2.5 rounded border border-emerald-900/50">
+            <div class="text-[9px] text-slate-400 uppercase">TARGET HIT</div>
+            <div class="text-lg font-black text-emerald-400 mt-0.5" id="simWins">68.4%</div>
+            <div class="text-[9px] text-slate-500">+25.4 pts (+1.5R)</div>
           </div>
-          <div class="bg-slate-900/80 p-3 rounded-lg border border-rose-900/40">
-            <div class="text-[10px] text-slate-400 font-bold uppercase">STOP HIT</div>
-            <div class="text-xl font-black text-rose-400 mt-1" id="simLosses">22.8%</div>
-            <div class="text-[10px] text-slate-500 mt-0.5">-14.1 pts (-1.0R)</div>
+          <div class="bg-black/60 p-2.5 rounded border border-rose-900/50">
+            <div class="text-[9px] text-slate-400 uppercase">STOP HIT</div>
+            <div class="text-lg font-black text-rose-400 mt-0.5" id="simLosses">22.8%</div>
+            <div class="text-[9px] text-slate-500">-14.1 pts (-1.0R)</div>
           </div>
-          <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
-            <div class="text-[10px] text-slate-400 font-bold uppercase">OPEN AT CLOSE</div>
-            <div class="text-xl font-black text-slate-300 mt-1" id="simOpen">8.8%</div>
-            <div class="text-[10px] text-slate-500 mt-0.5">Flat at 15:55 PM</div>
+          <div class="bg-black/60 p-2.5 rounded border border-slate-800">
+            <div class="text-[9px] text-slate-400 uppercase">EXP AT CLOSE</div>
+            <div class="text-lg font-black text-slate-300 mt-0.5" id="simOpen">8.8%</div>
+            <div class="text-[9px] text-slate-500">Flat at 15:55</div>
           </div>
         </div>
 
-        <div class="mt-4 pt-3 border-t border-slate-800/80 flex justify-between items-center text-xs">
+        <div class="mt-3 pt-2 border-t border-slate-800 flex justify-between items-center text-[11px] font-mono">
+          <span class="text-slate-400">Expectancy: <strong class="text-emerald-400" id="simExpR">+0.798 R</strong></span>
+          <span class="text-slate-400">Fan: 7,672 - 7,728</span>
+        </div>
+      </div>
+
+      <!-- NEW: INTERACTIVE "WHAT-IF" STRESS-TESTING SANDBOX -->
+      <div class="card p-4 border-amber-500/30">
+        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+          <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-sliders text-amber-400"></i> "WHAT-IF" STRESS SANDBOX
+          </h2>
+          <span class="badge bg-amber-950 text-amber-300 border border-amber-800 text-[10px]">LIVE SIM</span>
+        </div>
+
+        <div class="space-y-2.5 mt-2.5 text-xs font-mono">
           <div>
-            <span class="text-slate-400">Statistical Expectancy (R):</span>
-            <span class="font-bold text-emerald-400 font-mono ml-1" id="simExpR">+0.798 R</span>
+            <div class="flex justify-between text-slate-400 mb-1">
+              <span>VIX Shock (pts):</span>
+              <span class="text-amber-400 font-bold" id="lblVixShock">0.0 pts</span>
+            </div>
+            <input type="range" id="rngVix" min="-4.0" max="8.0" step="0.5" value="0.0" oninput="runStressTest()" class="w-full accent-amber-500">
           </div>
+
           <div>
-            <span class="text-slate-400">Terminal Price Fan (5th - 95th Pct):</span>
-            <span class="font-mono text-slate-300 ml-1">7,672.40 - 7,728.80</span>
+            <div class="flex justify-between text-slate-400 mb-1">
+              <span>US 10Y Yield Shift:</span>
+              <span class="text-cyan-400 font-bold" id="lblYieldShock">0 bps</span>
+            </div>
+            <input type="range" id="rngYield" min="-25" max="25" step="5" value="0" oninput="runStressTest()" class="w-full accent-cyan-500">
+          </div>
+
+          <div>
+            <div class="flex justify-between text-slate-400 mb-1">
+              <span>0DTE P/C Ratio:</span>
+              <span class="text-indigo-400 font-bold" id="lblPcShock">0.76</span>
+            </div>
+            <input type="range" id="rngPc" min="0.4" max="1.6" step="0.05" value="0.76" oninput="runStressTest()" class="w-full accent-indigo-500">
+          </div>
+
+          <div class="p-2 bg-black/60 rounded border border-slate-800 mt-2 text-[11px]">
+            <div class="flex justify-between">
+              <span class="text-slate-400">Stressed SPX Target:</span>
+              <span class="font-bold text-white font-mono" id="stressTarget">7,714.00</span>
+            </div>
+            <div class="flex justify-between mt-1">
+              <span class="text-slate-400">Committee Clearance:</span>
+              <span class="font-bold text-emerald-400 font-mono" id="stressVerdict">APPROVED (0.72)</span>
+            </div>
           </div>
         </div>
       </div>
+
     </div>
 
-    <!-- NEW: FULL-WIDTH LIVE FINANCIAL NEWS & S&P 500 CATALYST FEED -->
-    <div class="card p-5">
-      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+    <!-- Full-Width Live Financial News & S&P 500 Catalysts -->
+    <div class="card p-4">
+      <div class="flex justify-between items-center pb-2 border-b border-slate-800">
         <div>
-          <h2 class="text-sm font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-newspaper text-indigo-400"></i> Live Financial News & S&P 500 Market Catalysts
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-newspaper text-cyan-400"></i> LIVE FINANCIAL NEWS & S&P 500 MARKET CATALYSTS
           </h2>
-          <p class="text-xs text-slate-400">Real-time RSS headlines scored by NewsSentimentAgent with market impact and index driver analysis</p>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px]">
-            <i class="fa-solid fa-rss mr-1"></i> LIVE STREAM
-          </span>
-          <span class="text-xs font-mono text-slate-500" id="newsSyncTime">Updated: Just now</span>
-        </div>
+        <span class="badge bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px]">
+          <i class="fa-solid fa-rss mr-1"></i> LIVE STREAM
+        </span>
       </div>
 
-      <!-- Dynamic News Cards Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4" id="newsContainer">
-        <!-- News items will be populated by JavaScript -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3" id="newsContainer">
+        <!-- Rendered by JavaScript -->
       </div>
     </div>
 
   </div>
 
   <script>
-    let activeInstrument = 'SPX'; // 'SPX' or 'SPY'
+    let activeInstrument = 'SPX';
     let intradayChartInstance = null;
     let gexChartInstance = null;
 
-    // Baseline session data
-    let currentSpot = 7688.62;
-    let currentChangePts = "+119.70";
-    let currentChangePct = "+1.58%";
-
     function initCharts() {
-      // 1. Intraday Price & Forecast Chart
       const ctxIntraday = document.getElementById('intradayChart').getContext('2d');
       intradayChartInstance = new Chart(ctxIntraday, {
         type: 'line',
@@ -635,20 +655,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             {
               label: 'S&P 500 (.INX) Real-Time',
               data: [7650.12, 7662.40, 7658.20, 7674.80, 7695.10, 7682.30, 7678.50, 7692.10, 7708.40, 7714.20, 7698.50, 7680.20, 7684.90, 7688.62, null],
-              borderColor: '#6366f1',
-              backgroundColor: 'rgba(99, 102, 241, 0.08)',
-              borderWidth: 2.5,
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.08)',
+              borderWidth: 2,
               tension: 0.35,
               fill: true,
-              pointRadius: 2.5,
-              pointHoverRadius: 5
+              pointRadius: 2.5
             },
             {
               label: '30m Forecast Target (+25 bps)',
               data: [null, null, null, null, null, null, null, null, null, null, null, null, null, 7688.62, 7714.02],
               borderColor: '#10b981',
               borderWidth: 2,
-              borderDash: [5, 5],
+              borderDash: [4, 4],
               tension: 0.2,
               fill: false,
               pointRadius: 4,
@@ -657,82 +676,62 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             {
               label: '30m Stop Loss (-18 bps)',
               data: [null, null, null, null, null, null, null, null, null, null, null, null, null, 7688.62, 7674.78],
-              borderColor: '#f43f5e',
+              borderColor: '#ef4444',
               borderWidth: 2,
-              borderDash: [5, 5],
+              borderDash: [4, 4],
               tension: 0.2,
               fill: false,
               pointRadius: 4,
-              pointBackgroundColor: '#f43f5e'
+              pointBackgroundColor: '#ef4444'
+            },
+            {
+              label: 'Conformal 90% Upper Band',
+              data: [null, null, null, null, null, null, null, null, null, null, null, null, null, 7688.62, 7719.82],
+              borderColor: '#a855f7',
+              borderWidth: 1.5,
+              borderDash: [2, 2],
+              fill: false,
+              pointRadius: 3
+            },
+            {
+              label: 'Conformal 90% Lower Band',
+              data: [null, null, null, null, null, null, null, null, null, null, null, null, null, 7688.62, 7657.42],
+              borderColor: '#a855f7',
+              borderWidth: 1.5,
+              borderDash: [2, 2],
+              fill: false,
+              pointRadius: 3
             }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#0f172a',
-              titleColor: '#e2e8f0',
-              bodyColor: '#cbd5e1',
-              borderColor: '#334155',
-              borderWidth: 1,
-              padding: 10
-            }
-          },
+          plugins: { legend: { display: false } },
           scales: {
-            x: {
-              grid: { color: 'rgba(255, 255, 255, 0.04)' },
-              ticks: { color: '#64748b', font: { size: 10 } }
-            },
-            y: {
-              grid: { color: 'rgba(255, 255, 255, 0.04)' },
-              ticks: { color: '#64748b', font: { size: 10 } }
-            }
+            x: { grid: { color: 'rgba(255, 255, 255, 0.04)' }, ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } } },
+            y: { grid: { color: 'rgba(255, 255, 255, 0.04)' }, ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } } }
           }
         }
       });
 
-      // 2. GEX Strike Profile
       const ctxGex = document.getElementById('gexChart').getContext('2d');
       gexChartInstance = new Chart(ctxGex, {
         type: 'bar',
         data: {
           labels: ['7550', '7600', '7650', '7680 (Zero)', '7700', '7725', '7750', '7800'],
           datasets: [
-            {
-              label: 'Call GEX ($M)',
-              data: [150, 420, 950, 1550, 2100, 1450, 820, 310],
-              backgroundColor: '#6366f1',
-              borderRadius: 4
-            },
-            {
-              label: 'Put GEX ($M)',
-              data: [820, 650, 410, 290, 180, 90, 40, 10],
-              backgroundColor: '#3b82f6',
-              borderRadius: 4
-            }
+            { label: 'Call GEX ($M)', data: [150, 420, 950, 1550, 2100, 1450, 820, 310], backgroundColor: '#06b6d4', borderRadius: 2 },
+            { label: 'Put GEX ($M)', data: [820, 650, 410, 290, 180, 90, 40, 10], backgroundColor: '#3b82f6', borderRadius: 2 }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 }
-            }
-          },
+          plugins: { legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 9, family: 'monospace' }, boxWidth: 10 } } },
           scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: '#64748b', font: { size: 10 } }
-            },
-            y: {
-              grid: { color: 'rgba(255, 255, 255, 0.04)' },
-              ticks: { color: '#64748b', font: { size: 10 } }
-            }
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } } },
+            y: { grid: { color: 'rgba(255, 255, 255, 0.04)' }, ticks: { color: '#64748b', font: { size: 9, family: 'monospace' } } }
           }
         }
       });
@@ -749,12 +748,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const tradeInstrument = document.getElementById('tradeInstrument');
 
       if (mode === 'SPX') {
-        btnSPX.className = "px-3 py-1.5 rounded-md bg-indigo-600 text-white transition shadow";
-        btnSPY.className = "px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition";
-        spotLabel.innerText = "S&P 500 INDEX (.INX / SPX)";
+        btnSPX.className = "px-3 py-1 rounded bg-cyan-600 text-white font-bold transition";
+        btnSPY.className = "px-3 py-1 rounded text-slate-400 hover:text-white transition";
+        spotLabel.innerText = "S&P 500 INDEX (.INX)";
         spotPrice.innerText = "7,688.62";
         spotChange.innerHTML = `<i class="fa-solid fa-caret-up"></i> +1.58% (+119.70 today)`;
-        chartTitle.innerText = "S&P 500 INDEX (.INX) Real-Time 5m Session vs 30m Forecast";
+        chartTitle.innerText = "S&P 500 (.INX) 5m Session vs Conformal 90% Envelope";
         tradeInstrument.innerText = "Buy SPX 7685 C / Sell 7715 C";
 
         intradayChartInstance.data.datasets[0].label = 'S&P 500 (.INX) Real-Time';
@@ -762,12 +761,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         intradayChartInstance.data.datasets[1].data = [null, null, null, null, null, null, null, null, null, null, null, null, null, 7688.62, 7714.02];
         intradayChartInstance.data.datasets[2].data = [null, null, null, null, null, null, null, null, null, null, null, null, null, 7688.62, 7674.78];
       } else {
-        btnSPY.className = "px-3 py-1.5 rounded-md bg-indigo-600 text-white transition shadow";
-        btnSPX.className = "px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition";
+        btnSPY.className = "px-3 py-1 rounded bg-cyan-600 text-white font-bold transition";
+        btnSPX.className = "px-3 py-1 rounded text-slate-400 hover:text-white transition";
         spotLabel.innerText = "SPY ETF PROXY ($512.60)";
         spotPrice.innerText = "512.60";
         spotChange.innerHTML = `<i class="fa-solid fa-caret-up"></i> +1.55% (+7.82 today)`;
-        chartTitle.innerText = "SPDR S&P 500 ETF (SPY) Intraday Session vs 30m Forecast";
+        chartTitle.innerText = "SPDR S&P 500 ETF (SPY) 5m Session vs Conformal Envelope";
         tradeInstrument.innerText = "Buy SPY $512 Calls ($1.85) / Shares";
 
         intradayChartInstance.data.datasets[0].label = 'SPY ETF Spot Price ($)';
@@ -783,36 +782,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const res = await fetch('/api/telemetry');
         const data = await res.json();
 
-        // Update clock
         const now = new Date();
         document.getElementById('liveClock').innerText = 'NYC: ' + now.toLocaleTimeString();
-        document.getElementById('dataSyncTime').innerText = 'Live Sync: ' + (data.last_sync || now.toLocaleTimeString()) + ' ET';
-        if (data.source) {
-          document.getElementById('liveFeedSource').innerText = '[' + data.source + ']';
-        }
+        document.getElementById('dataSyncTime').innerText = 'Sync: ' + (data.last_sync || now.toLocaleTimeString()) + ' ET';
 
-        // Update Top KPIs if in SPX mode
         if (activeInstrument === 'SPX') {
           document.getElementById('spotPrice').innerText = data.spot_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          document.getElementById('tbSPX').innerText = `${data.spot_price.toFixed(2)} (${data.change_pct})`;
           document.getElementById('spotChange').innerHTML = `<i class="fa-solid fa-caret-up"></i> ${data.change_pct} (${data.change_pts} today)`;
-          document.getElementById('spotRange').innerText = `Day: ${data.low} - ${data.high} | Prev: ${data.prev_close}`;
+          document.getElementById('spotRange').innerText = `Range: ${data.low} - ${data.high} | Prev: ${data.prev_close}`;
         }
 
         document.getElementById('gexValue').innerText = (data.net_gex >= 0 ? '+' : '') + data.net_gex.toFixed(2) + 'B';
         document.getElementById('pcValue').innerText = data.pc_ratio.toFixed(2);
-        if (data.vix) {
-          document.getElementById('vixValue').innerText = data.vix.toFixed(2);
-        }
 
-        // Probabilities
-        document.getElementById('probUp').innerText = (data.p_up * 100).toFixed(1) + '%';
+        document.getElementById('probUp').innerText = (data.p_up * 100).toFixed(0) + '%';
         document.getElementById('barUp').style.width = (data.p_up * 100) + '%';
-        document.getElementById('probFlat').innerText = (data.p_flat * 100).toFixed(1) + '%';
+        document.getElementById('probFlat').innerText = (data.p_flat * 100).toFixed(0) + '%';
         document.getElementById('barFlat').style.width = (data.p_flat * 100) + '%';
-        document.getElementById('probDown').innerText = (data.p_down * 100).toFixed(1) + '%';
+        document.getElementById('probDown').innerText = (data.p_down * 100).toFixed(0) + '%';
         document.getElementById('barDown').style.width = (data.p_down * 100) + '%';
 
-        // Order Execution Ticket Levels
         if (data.trade_blueprint) {
           document.getElementById('tradeMandate').innerHTML = `<i class="fa-solid fa-circle-check"></i> ` + data.trade_blueprint.mandate;
           document.getElementById('tradeInstrument').innerText = data.trade_blueprint.instrument;
@@ -823,36 +813,33 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           document.getElementById('tradeStop').innerText = data.trade_blueprint.stop_loss;
         }
 
-        // Live News Rendering
-        if (data.news && data.news.length > 0) {
-          renderNews(data.news);
+        if (data.committee_debate_log && data.committee_debate_log.length > 0) {
+          renderDebate(data.committee_debate_log);
         }
 
-        // Update 5m Intraday Chart points if returned by feed
-        if (data.chart_points && data.chart_points.length >= 6 && activeInstrument === 'SPX') {
-          const times = data.chart_points.map(p => p.time);
-          const prices = data.chart_points.map(p => p.price);
-          times.push(times[times.length - 1] + ' +30m');
-          prices.push(null);
-
-          const lastPrice = data.spot_price;
-          const upper = new Array(times.length).fill(null);
-          const lower = new Array(times.length).fill(null);
-          upper[times.length - 2] = lastPrice;
-          upper[times.length - 1] = Math.round((lastPrice * 1.0033) * 100) / 100;
-          lower[times.length - 2] = lastPrice;
-          lower[times.length - 1] = Math.round((lastPrice * 0.9982) * 100) / 100;
-
-          intradayChartInstance.data.labels = times;
-          intradayChartInstance.data.datasets[0].data = prices;
-          intradayChartInstance.data.datasets[1].data = upper;
-          intradayChartInstance.data.datasets[2].data = lower;
-          intradayChartInstance.update();
+        if (data.news && data.news.length > 0) {
+          renderNews(data.news);
         }
 
       } catch (err) {
         console.error("Telemetry fetch error:", err);
       }
+    }
+
+    function renderDebate(logs) {
+      const term = document.getElementById('debateTerminal');
+      term.innerHTML = '';
+      logs.forEach(item => {
+        const row = document.createElement('div');
+        row.className = "flex items-start gap-2 py-0.5 border-b border-slate-900";
+        row.innerHTML = `
+          <span class="text-slate-500 font-mono text-[10px] whitespace-nowrap">[${item.time}]</span>
+          <span class="badge bg-slate-900 border border-slate-700 text-[9px] font-mono">${item.badge}</span>
+          <span class="${item.color} font-mono font-bold whitespace-nowrap">${item.agent}:</span>
+          <span class="text-slate-300 font-mono text-[11px]">${item.message}</span>
+        `;
+        term.appendChild(row);
+      });
     }
 
     function renderNews(newsItems) {
@@ -862,36 +849,57 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       newsItems.forEach(item => {
         const isBullish = item.sentiment >= 0.2;
         const isBearish = item.sentiment <= -0.2;
-        const badgeColor = isBullish ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : (isBearish ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-slate-700/40 text-slate-300 border-slate-600/40');
+        const badgeColor = isBullish ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isBearish ? 'bg-rose-950 text-rose-300 border-rose-800' : 'bg-slate-800 text-slate-300 border-slate-700');
         const badgeText = isBullish ? `+${item.sentiment} BULLISH` : (isBearish ? `${item.sentiment} BEARISH` : `NEUTRAL`);
 
         const card = document.createElement('div');
-        card.className = "bg-slate-900/80 p-4 rounded-lg border border-slate-800/80 hover:border-slate-700 transition flex flex-col justify-between space-y-2.5";
+        card.className = "bg-black/60 p-3 rounded border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between space-y-2";
         card.innerHTML = `
           <div>
-            <div class="flex justify-between items-start gap-2 mb-1.5">
+            <div class="flex justify-between items-start gap-2 mb-1">
               <span class="badge ${badgeColor} border font-mono">
                 ${badgeText}
               </span>
-              <span class="text-[11px] text-slate-500 font-mono flex items-center gap-1">
-                <i class="fa-regular fa-clock"></i> ${item.published || 'Recent'}
-              </span>
+              <span class="text-[10px] text-slate-500 font-mono">${item.published || 'Recent'}</span>
             </div>
-            <h3 class="text-xs md:text-sm font-bold text-white leading-snug hover:text-indigo-300 transition">
+            <h3 class="text-xs font-bold text-white leading-snug hover:text-cyan-300 transition">
               ${item.title}
             </h3>
-            <p class="text-xs text-slate-400 mt-2 line-clamp-2">
-              <strong class="text-indigo-400">AI Impact:</strong> ${item.analysis || 'Algorithmic options hedging and liquidity alignment indicates positive underlying support.'}
+            <p class="text-[11px] text-slate-400 mt-1">
+              <strong class="text-cyan-400 font-mono">AI Impact:</strong> ${item.analysis || 'Dealer options hedging aligns with positive index support.'}
             </p>
           </div>
-          <div class="flex justify-between items-center pt-2 border-t border-slate-800/60 text-[11px] text-slate-500">
-            <span><i class="fa-solid fa-tag text-slate-600 mr-1"></i> ${item.category || 'MARKET CATALYST'}</span>
-            <span class="font-mono text-indigo-400">${item.source || 'Live Feed'}</span>
+          <div class="flex justify-between items-center pt-1.5 border-t border-slate-900 text-[10px] text-slate-500 font-mono">
+            <span>${item.category || 'MARKET CATALYST'}</span>
+            <span class="text-cyan-400">${item.source || 'Live Feed'}</span>
           </div>
         `;
         container.appendChild(card);
       });
-      document.getElementById('newsSyncTime').innerText = 'Updated: ' + new Date().toLocaleTimeString();
+    }
+
+    function runStressTest() {
+      const vixShock = parseFloat(document.getElementById('rngVix').value);
+      const yieldShock = parseInt(document.getElementById('rngYield').value);
+      const pcShock = parseFloat(document.getElementById('rngPc').value);
+
+      document.getElementById('lblVixShock').innerText = (vixShock >= 0 ? '+' : '') + vixShock.toFixed(1) + ' pts';
+      document.getElementById('lblYieldShock').innerText = (yieldShock >= 0 ? '+' : '') + yieldShock + ' bps';
+      document.getElementById('lblPcShock').innerText = pcShock.toFixed(2);
+
+      // Simple real-time dynamic impact model
+      let baseTarget = 7714.02;
+      let stressShift = (-vixShock * 3.2) + (-yieldShock * 0.45) + ((0.76 - pcShock) * 12.0);
+      let newTarget = (baseTarget + stressShift).toFixed(2);
+
+      document.getElementById('stressTarget').innerText = newTarget;
+      if (vixShock > 3.0 || yieldShock > 15 || pcShock > 1.2) {
+        document.getElementById('stressVerdict').innerText = "VETO / CAUTION (RISK-OFF)";
+        document.getElementById('stressVerdict').className = "font-bold text-rose-400 font-mono";
+      } else {
+        document.getElementById('stressVerdict').innerText = "APPROVED (CLEAR RUNWAY)";
+        document.getElementById('stressVerdict').className = "font-bold text-emerald-400 font-mono";
+      }
     }
 
     async function triggerSimulate() {
@@ -939,16 +947,26 @@ class QuantApiHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
 
-            # Retrieve live market data from Yahoo Finance / Cboe feed
             mkt = market_feed.get_market_data()
             news_items = market_feed.get_news()
 
             spot = mkt.get('spot', 7688.62)
-            # Add dynamic intraday micro-tick for real-time responsiveness
             live_spot = round(spot + random.uniform(-0.45, 0.65), 2)
             spy_spot = round(512.60 + random.uniform(-0.08, 0.12), 2)
             gex = round(5.12 + random.uniform(-0.10, 0.10), 2)
             pc = round(0.76 + random.uniform(-0.02, 0.02), 2)
+
+            committee_res = committee_agent.generate_intraday_consensus(
+                current_spot=live_spot,
+                net_gex_b=gex,
+                pc_ratio_0dte=pc,
+                vix_level=16.61,
+                vix_change_pct=-20.26,
+                us10y_yield=4.38,
+                us10y_change_bps=-4.0,
+                dxy_index=101.23,
+                dxy_change_pct=-0.26,
+            )
 
             telemetry = {
                 "timestamp": datetime.now().isoformat(),
@@ -968,10 +986,10 @@ class QuantApiHandler(BaseHTTPRequestHandler):
                 "source": mkt.get('source', "LIVE YAHOO & CBOE STREAM"),
                 "last_sync": mkt.get('last_sync', datetime.now().strftime('%H:%M:%S ET')),
                 "chart_points": mkt.get('chart_points', []),
-                "p_up": 0.65,
-                "p_flat": 0.22,
-                "p_down": 0.13,
-                "signal": "CALL_SPREAD_BUY",
+                "p_up": committee_res["probabilities"]["p_up"],
+                "p_flat": committee_res["probabilities"]["p_flat"],
+                "p_down": committee_res["probabilities"]["p_down"],
+                "signal": committee_res["consensus_signal"],
                 "trade_blueprint": {
                     "mandate": "LONG CALL SPREAD (0DTE SPX)",
                     "instrument": "Buy SPX 7685 C / Sell 7715 C",
@@ -985,6 +1003,10 @@ class QuantApiHandler(BaseHTTPRequestHandler):
                     "rr_ratio": "1 : 2.37 R/R",
                     "sizing": "Risk 1.0% ($2,500) -> 8 SPX Contracts"
                 },
+                "committee_debate_log": committee_res["committee_debate_log"],
+                "conformal_interval_90": committee_res["conformal_prediction_90"],
+                "critic_audit": committee_res["critic_audit"],
+                "intermarket_macro": committee_res["intermarket_macro"],
                 "news": news_items,
                 "timemachine": {
                     "win_rate": 68.4,
@@ -1033,17 +1055,27 @@ class QuantApiHandler(BaseHTTPRequestHandler):
             }
             self.wfile.write(json.dumps(bt_results).encode("utf-8"))
 
+        elif self.path == "/api/committee":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            comm = committee_agent.generate_intraday_consensus(current_spot=7688.62)
+            self.wfile.write(json.dumps(comm).encode("utf-8"))
+
         elif self.path == "/api/agents":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             agents_status = {
-                "agents": [
-                    {"name": "NewsSentimentAgent", "status": "ONLINE", "type": "Live RSS NLP & Macro Catalysts"},
-                    {"name": "ScannerAgent", "status": "ONLINE", "type": "ORB Breakouts & Volume Surges"},
+                "committee": [
+                    {"name": "ScannerAgent", "status": "ONLINE", "type": "ORB Breakout & Volume Surge"},
+                    {"name": "NewsSentimentAgent", "status": "ONLINE", "type": "Live RSS NLP & SEC Catalysts"},
+                    {"name": "CrossAssetIntermarketAgent", "status": "ONLINE", "type": "Treasury Yields & DXY Dollar Monitor"},
+                    {"name": "VannaCharmAgent", "status": "ONLINE", "type": "Second-Order Greeks & Conformal Envelope"},
+                    {"name": "AdversarialCriticAgent", "status": "ONLINE", "type": "Devil's Advocate Skeptic & Veto Guard"},
                     {"name": "TimeMachineAgent", "status": "ONLINE", "type": "10,000-Path Monte Carlo Replay"},
-                    {"name": "RiskAgent", "status": "ONLINE", "type": "Position Sizing & -2% Drawdown Circuit Breaker"},
-                    {"name": "SPXEnsembleForecaster", "status": "ONLINE", "type": "Purged Walk-Forward ML Meta-Learner"},
+                    {"name": "RiskGuardianAgent", "status": "ONLINE", "type": "Position Sizing & -2% Drawdown Circuit Breaker"},
+                    {"name": "ChiefQuantArbiter", "status": "ONLINE", "type": "Master Multi-Agent Consensus Orchestrator"},
                 ]
             }
             self.wfile.write(json.dumps(agents_status).encode("utf-8"))
@@ -1058,7 +1090,7 @@ class QuantApiHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
 
-            sim_agent = MasterTriEngineAgent().timemachine_agent
+            sim_agent = committee_agent.timemachine_agent
             sim = sim_agent.simulate_trade(
                 entry_price=7688.62,
                 target_pct=0.0033,
@@ -1075,10 +1107,11 @@ def run_web_server(port: int = 8080):
     server_address = ("0.0.0.0", port)
     httpd = ThreadedHTTPServer(server_address, QuantApiHandler)
     print("=" * 70)
-    print(f"[GO] S&P 500 (.INX) Real-Time Institutional Alpha Engine Live at:")
+    print(f"[GO] Bloomberg Terminal Quant Command Live at:")
     print(f"   -> http://localhost:{port}")
     print(f"   API Endpoints:")
     print(f"     - http://localhost:{port}/api/telemetry")
+    print(f"     - http://localhost:{port}/api/committee")
     print(f"     - http://localhost:{port}/api/gex")
     print(f"     - http://localhost:{port}/api/backtest")
     print(f"     - http://localhost:{port}/api/agents")

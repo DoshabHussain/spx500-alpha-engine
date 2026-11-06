@@ -93,3 +93,4 @@ class CrossAssetIntermarketAgent:
             "catalysts": catalysts,
             "equity_tailwind": score > 0,
         }
+

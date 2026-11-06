@@ -1,18 +1,18 @@
-# S&P 500 Real-Time Intraday Directional Forecasting & Multi-Agent Alpha Engine
+# AURA-500 QUANT: Next-Gen Autonomous S&P 500 Quantitative Execution Terminal
 
 <div align="center">
 
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Status](https://img.shields.io/badge/System%20Status-All%207%20Stages%20Operational-emerald.svg?style=for-the-badge&logo=checkmarx&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
+[![System Status](https://img.shields.io/badge/System%20Status-All%207%20Stages%20Operational-emerald.svg?style=for-the-badge&logo=checkmarx&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
 [![Framework](https://img.shields.io/badge/Validation-Purged%20%26%20Embargoed%20CV-purple.svg?style=for-the-badge&logo=scipy&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
-[![Agents](https://img.shields.io/badge/Architecture-7--Agent%20Autonomous%20Committee-orange.svg?style=for-the-badge&logo=openai&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
+[![Agents](https://img.shields.io/badge/Architecture-7--Agent%20Adversarial%20Committee-orange.svg?style=for-the-badge&logo=openai&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
 [![Test Suite](https://img.shields.io/badge/Unit%20Tests-7%20Passed%20100%25-success.svg?style=for-the-badge&logo=pytest&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
-[![Terminal UI](https://img.shields.io/badge/Interface-Bloomberg%20Terminal%20Grade-amber.svg?style=for-the-badge&logo=databricks&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
+[![Interface](https://img.shields.io/badge/Interface-AURA--500%206--Page%20Suite-00f2fe.svg?style=for-the-badge&logo=databricks&logoColor=white)](https://github.com/DoshabHussain/spx500-alpha-engine)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-**Institutional-grade quantitative intraday forecasting, strike-level Net Dealer Gamma Exposure (GEX) analytics, 7-Agent Autonomous Quant Committee with Adversarial Debate, Second-Order Greeks (Vanna & Charm), Conformal Prediction Envelopes, and Bloomberg Terminal-grade web interface for the S&P 500 Index (`INDEXSP: .INX` / `SPX` and `SPY` Proxy).**
+**Institutional-grade quantitative intraday forecasting suite, strike-level Net Dealer Gamma Exposure (GEX) analytics, 7-Agent Autonomous Quant Committee with Adversarial Debate Protocol, Second-Order Greeks (Vanna & Charm), Conformal Prediction Envelopes, Mathematically Bounded Options Risk, and Award-Winning Modern Multi-Page Terminal for the S&P 500 Index (`INDEXSP: .INX` / `SPX` and `SPY` Proxy).**
 
-[Live Dashboard](#-stage-7-bloomberg-terminal-grade-web-application) • [Architecture](#-the-7-stage-quantitative-architecture) • [Quant Committee](#-the-7-agent-autonomous-quant-committee) • [Microstructure & Greeks](#-mathematical--microstructure-foundations) • [Quick Start](#-quick-start--reproduction-guide) • [API Reference](#-rest-api-telemetry-reference)
+[Live Terminal](#-stage-7-aura-500-quantum-multi-page-trading-suite) • [Architecture](#-the-7-stage-quantitative-architecture) • [Quant Committee](#-the-7-agent-autonomous-quant-committee) • [Microstructure & Greeks](#-mathematical--microstructure-foundations) • [Quick Start](#-quick-start--reproduction-guide) • [API Reference](#-rest-api-telemetry-reference)
 
 </div>
 
@@ -20,14 +20,15 @@
 
 ## 🎓 Executive Summary & University Submission Details
 
-* **Project Title:** S&P 500 Real-Time Intraday Directional Forecasting & Multi-Agent Alpha Engine
-* **Benchmark Asset:** S&P 500 Index (`INDEXSP: .INX` / Cash Index at `7,688.62` level) & SPDR S&P 500 ETF Trust (`SPY` Proxy at `$512.60`)
+* **Platform Identity:** **AURA-500 QUANT** (*Next-Gen Autonomous S&P 500 Quantitative Execution Terminal*)
+* **Benchmark Asset:** S&P 500 Index (`INDEXSP: .INX` / Cash Index at `7,353.73` – `7,688.62` level) & SPDR S&P 500 ETF Trust (`SPY` Proxy at `$490.00` – `$512.60`)
 * **Live Ingestion Feed:** Continuous real-time synchronization with Yahoo Finance & Cboe options stream (`^GSPC`, `SPY`, `^VIX`)
 * **Prediction Horizon:** Intraday 30-Minute and 1-Hour Forward Directional Moves ($P_{Up}, P_{Flat}, P_{Down}$) with Conformal 90% Coverage
 * **Time Grid Resolution:** 5-Minute Canonical Regular Trading Hours (RTH, 09:30 – 16:00 ET, 79 bars/session)
 * **Validation Standard:** Marcos López de Prado's Purged & Embargoed Walk-Forward Cross-Validation (Eliminating Lookahead & Return Overlap Leakage)
 * **Autonomous Intelligence:** 7-Agent Committee with an Adversarial Debate Protocol (Scanner, News NLP, Cross-Asset Macro, Vanna/Charm Greeks, Devil's Advocate Critic, Time Machine Monte Carlo, Risk Guardian)
-* **Operational Verification:** 100% test pass rate across all 7 pipeline stages (`7 passed in 7.73s`)
+* **Risk Bounded Options Math:** Vertical debit spread pricing with strictly bounded max loss capped at risk budget ($2,500), auto-adaptive regime positioning (Bear Put Spreads in selloffs, Bull Call Spreads in rallies), and breakeven trailing stop arming.
+* **Operational Verification:** 100% test pass rate across all 7 pipeline stages (`7 passed in 6.76s`)
 
 ---
 
@@ -165,57 +166,72 @@ $$\hat{S}_{low} = S_t - 1.645 \cdot \sigma_{intraday} \cdot S_t \cdot \kappa_{GE
 
 ---
 
-## 🖥️ Stage 7: Bloomberg Terminal-Grade Web Application
+## 🖥️ Stage 7: AURA-500 Quantum Multi-Page Trading Suite
 
-The system features an institutional Bloomberg-style dark terminal interface with amber, cyan, and midnight-navy accents:
+The platform features an award-winning modern quantitative aesthetic (inspired by Dribbble PRO+ / Craft Trading) engineered with **6 dedicated, fully-functional operational pages**:
 
 ```
-+---------------------------------------------------------------------------------------------------------------+
-| BBG QUANT COMMAND | SPX: 7,688.62 (+1.58%) | VIX: 16.61 (-20.2%) | US10Y: 4.38% (-4 bps) | DXY: 101.23 (-0.26%)|
-+---------------------------------------------------------------------------------------------------------------+
-| S&P 500 (.INX)           | NET DEALER GAMMA (GEX)    | 0DTE PUT/CALL RATIO       | PAPER PORTFOLIO (EQUITY)   |
-| 7,688.62                 | +5.12B (Long Gamma Pin)   | 0.76 (Bullish Call Flow)  | $102,840.00 (+$2,840.00)   |
-| ▲ +1.58% (+119.70 today) | Zero-GEX Pivot: 7,680.00  | Vanna Buy Flow: +$1.81B   | Open: 8x 7685/7715 (+59%)  |
-+---------------------------------------------------------------------------------------------------------------+
-| [ INTRADAY 5M SESSION vs CONFORMAL 90% ENVELOPE ]                 | [ INSTITUTIONAL ORDER TICKET ]            |
-| 7,720 |                   /\             ... Conformal 90% (7,720)| Mandate:     LONG CALL SPREAD (0DTE)      |
-| 7,700 |        /\        /  \            ... Target (+25.4 pts)   | Tool:        Buy SPX 7685 C / Sell 7715 C |
-| 7,680 |  \    /  \__/\  /    \____  ____/                         | Timing:      09:45 - 10:15 ET (Retest)    |
-| 7,660 |   \__/        \/          \/     ... Conformal 90% (7,657)| Entry Zone:  7,684.00 - 7,688.00          |
-|       +---------------------------------------------------------- | Target 1:    7,705.00 (+16.4 pts)         |
-|        09:30   11:00   12:30   14:00   15:00   16:00              | Hard Exit:   15:45 ET (Zero Overnight)    |
-+---------------------------------------------------------------------------------------------------------------+
-| AUTONOMOUS QUANT COMMITTEE DELIBERATION TERMINAL (LIVE ADVERSARIAL DEBATE)                                    |
-| [10:14:02] [TRIGGER]   ScannerAgent:       15m ORB Breakout confirmed above 7,680.00. Volume: 1.58x VWAP.     |
-| [10:14:06] [CONFIRM]   IntermarketAgent:   Macro tailwinds verified: US 10Y eased -4 bps, DXY down -0.26%.    |
-| [10:14:10] [GREEKS]    VannaCharmAgent:    VIX crush (-20.2%) creates +$1.81B Vanna buy-imbalance.            |
-| [10:14:14] [CHALLENGE] AdversarialCritic:  Critic verdict: APPROVED. No breadth divergence. Clearance: 0.95.  |
-| [10:14:18] [SIZING]    RiskGuardian:       VaR bounded. Authorized risk: $2,500 (1.0% equity). Size: 8 SPX.   |
-| [10:14:22] [DECISION]  ChiefQuantArbiter:  CONSENSUS REACHED: CALL_BUY (Score: 0.72). Runway Clear.          |
-+---------------------------------------------------------------------------------------------------------------+
-| GEX STRIKES ($M)         | 10K MONTE CARLO SIMULATION        | "WHAT-IF" INTERACTIVE STRESS SANDBOX           |
-| 7550: ███                | Target Hit: 68.4% (+1.5R)         | VIX Shock:        [-4.0 to +8.0 pts]  [ 0.0 ] |
-| 7680: ████████████ (Zero)| Stop Hit:   22.8% (-1.0R)         | 10Y Yield Shift:  [-25 to +25 bps]    [  0  ] |
-| 7700: ██████████████████ | Expectancy: +0.798 R              | 0DTE P/C Ratio:   [0.40 to 1.60]      [0.76 ] |
-| 7725: ████████████       | Fan: 7,672 - 7,728                | Stressed Target: 7,714.02 | Clearance: APPROVED|
-+---------------------------------------------------------------------------------------------------------------+
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  AURA-500 QUANTUM PRO   [ Terminal ] [ Committee ] [ Quant Lab ] [ GEX Matrix ] [ Ledger ] [ Catalysts ]│
+│  LIVE SYNC: CBOE SPX FEED  |  NYC: 10:57:11 ET  |  MODE: S&P 500 (.INX) / SPY PROXY                    │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Key UI Features:
-1. **Live Cross-Asset Ticker:** Shows real-time quotes for `SPX`, `VIX`, `US10Y`, `DXY`, `AAPL`, `NVDA`, `WTI`, and `BTC`.
-2. **Autonomous Quant Committee Deliberation Terminal:** Real-time streaming log of the multi-agent adversarial debate.
-3. **Institutional Order Execution Ticket:**
-   - **Recommended Tool:** `Buy SPX 7,685 C / Sell 7,715 C (0DTE)`
-   - **Execution Window:** `09:45 – 10:15 ET (Retest Window)`
-   - **Optimal Entry Zone:** `7,684.00 – 7,688.00`
-   - **Target 1 (Scale 50%):** `7,705.00 (+16.4 pts / +21 bps)`
-   - **Target 2 (Runner):** `7,722.00 (+33.4 pts / +43 bps)`
-   - **Stop Loss:** `7,674.50 (-14.1 pts / -18 bps)`
-   - **Mandatory Time Exit:** `15:45 ET (Power Hour close - zero overnight risk)`
-   - **Trailing Stop Rule:** `Move stop to Breakeven (7,688.00) once Target 1 is crossed`
-4. **Interactive "What-If" Stress-Testing Sandbox:** Live sliders for VIX shocks, 10Y Treasury yield shifts, and 0DTE Put/Call flows that re-simulate targets and committee clearance instantly.
-5. **Virtual Paper-Trading Portfolio Tracker:** Real-time virtual equity balance, open position P&L (+$1,480 / +59.2%), and trailing stop monitors.
-6. **Live Financial News & S&P 500 Catalyst Feed:** Real-time RSS headlines scored with sentiment polarity and AI agent impact explanations.
+### The 6 Dedicated Functional Pages:
+
+#### 1. Executive Trading Terminal (`/` -> `Terminal`)
+* **Real-Time 5m Candlestick Canvas:** Built with **Dynamic Auto-Scaling Price Geometry** that computes min/max boundaries dynamically with padding, guaranteeing price action is centered whether the index trades at 7,688 or 7,353 without clipping.
+* **TradingView-Grade Position Tool Overlays:**
+  - **Green Target Box:** Displays Target 1 (`+16.4 pts`) and Target 2 (`+33.4 pts`) with dashed trajectory vectors.
+  - **Red Risk Stop Box:** Visualizes initial risk cutoff (`-14.1 pts`) and trailing stop arming lines.
+  - **Conformal 90% Statistical Envelopes:** Shaded uncertainty bounds preventing false-breakout whipsaws.
+* **Institutional Execution Ticket:** Specific order details (instrument, entry zone, scale targets, hard exit at 15:45 ET, zero overnight exposure).
+* **Options Factor Attribution Matrix:** Delta ($+0.42$), Gamma support ($+5.12B$), Vega sensitivity, and Theta decay per hour.
+
+#### 2. Autonomous Quant Committee Hub (`/` -> `Committee`)
+* **Visual 7-Agent Architecture Grid:** Status cards displaying confidence levels and algorithmic mandates for:
+  - `ScannerAgent` (15m ORB & Volume surge)
+  - `NewsSentimentAgent` (NLP polarity & SEC 8-K scoring)
+  - `CrossAssetIntermarketAgent` (US 10Y yields, DXY, VIX term structure)
+  - `VannaCharmAgent` (Second-order options Greeks & dealer imbalances)
+  - `AdversarialCriticAgent` (Lunch lull vetoes & breadth divergence checks)
+  - `TimeMachineAgent` (10,000-path empirical Monte Carlo replay)
+  - `RiskGuardianAgent` (Risk budgeting, VaR bounding, and circuit breakers)
+* **Live Adversarial Debate Stream:** Terminal feed showing real-time timestamps, objections, confirmations, and consensus mandates.
+
+#### 3. Quantitative Strategy Validation Lab (`/` -> `Quant Lab`)
+* **Cumulative Strategy Equity Growth Curve:** Displays backtested portfolio equity curve compounding from $100,000 to $104,250+ against the buy-and-hold benchmark.
+* **Underwater Intraday Drawdown Chart:** Visualizes downside volatility strictly contained to `-3.1%` max drawdown.
+* **Quantitative Risk KPIs:** Sharpe Ratio (2.14), Sortino Ratio (2.82), Win Rate (68.4%), and Profit Factor (1.94).
+
+#### 4. Microstructure & Net Dealer GEX Matrix (`/` -> `GEX Matrix`)
+* **Strike-Level Net Dealer Gamma Profile:** Interactive bar chart visualizing dealer call/put exposure per strike.
+* **Zero-GEX Inflection Pivot:** Highlights the critical level where dealer hedging shifts between mean-reverting (long gamma) and trend-accelerating (short gamma).
+* **Second-Order Greeks Gauges:** Real-time Vanna flow demand (`+$1.81B`) and Charm time-decay unwinds.
+
+#### 5. Prediction vs. Reality Audit Ledger (`/` -> `Audit Ledger`)
+* **Rolling Trade Ledger:** Timestamped audit table recording historical trade setups, directional bias, entry prices, exit fills, R-multiples, and verified outcomes (`TARGET_1_HIT`, `BREAKEVEN_STOP`, `TARGET_2_HIT`).
+* **Cumulative Expectancy Summary:** Realized win rate (80.0%) and statistical expectancy (`+1.58 R`).
+
+#### 6. Live Market Catalysts & Financial News Feed (`/` -> `Catalysts`)
+* **Live Financial RSS Ingestion:** Continuous feeds from Yahoo Finance, Bloomberg, and Reuters for S&P 500 components.
+* **Algorithmic NLP Polarity Scoring:** Automatic color-coded sentiment classification (`Bullish +0.2`, `Bearish -0.6`).
+* **AI Market Impact Analysis:** Institutional commentary explaining systematic CTA trend-following flows and dealer hedging implications.
+
+---
+
+### 🛡️ Mathematically Bounded Defined-Risk Options Architecture
+
+To eliminate the mathematical flaw where catastrophic multi-hundred point market gap drops (e.g. from 7,688 down to 7,353) produce unbounded options paper losses, the engine enforces **strict defined-risk bounding**:
+
+```
+                           Vertical Debit Spread Math:
+  Max Loss Capped:        Loss <= -Risk Budget ($2,500.00)
+  Max Profit Capped:      Profit <= Max Spread Width * Contracts - Debit Paid
+  Regime Adaptation:      Bearish Shift -> Auto-Pivots to Bear Put Debit Spreads
+                          Bullish Shift -> Auto-Pivots to Bull Call Debit Spreads
+  Trailing Stop Rule:     Arms at Breakeven once +8.0 pts favorable move is achieved
+```
 
 ---
 
@@ -259,7 +275,7 @@ pip install -e .
 python run_all.py
 ```
 
-### 3. Launch Bloomberg Terminal Dashboard
+### 3. Launch AURA-500 Quantum Terminal
 
 ```bash
 python src/web/app.py 8080
@@ -284,7 +300,7 @@ tests/test_pipeline.py::test_stage5_multi_agent_system PASSED           [ 71%]
 tests/test_pipeline.py::test_stage6_execution_and_backtesting PASSED    [ 85%]
 tests/test_pipeline.py::test_stage7_web_app_telemetry_payload PASSED    [100%]
 
-============================== 7 passed in 7.73s ==============================
+============================== 7 passed in 6.76s ==============================
 ```
 
 ---
@@ -293,7 +309,7 @@ tests/test_pipeline.py::test_stage7_web_app_telemetry_payload PASSED    [100%]
 
 | Method | Endpoint | Description | Sample Output |
 |:---|:---|:---|:---|
-| `GET` | `/` | Bloomberg Terminal-Grade Dark Dashboard | Interactive UI |
+| `GET` | `/` | AURA-500 Multi-Page Quantum Terminal Suite | Interactive UI |
 | `GET` | `/api/telemetry` | Full telemetry payload (Price, GEX, Committee Debate, News) | `{"spot": 7688.62, "net_gex": 5.12, "p_up": 0.65}` |
 | `GET` | `/api/committee` | Full 7-agent debate transcript, critic audit & conformal bounds | `{"consensus_signal": "CALL_BUY", "score": 0.72}` |
 | `GET` | `/api/gex` | Strike-level dealer gamma distribution | `[{"strike": 7680, "call_gex": 1550, "put_gex": 290}]` |

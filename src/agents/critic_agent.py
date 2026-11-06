@@ -101,3 +101,4 @@ class AdversarialCriticAgent:
             "objections": objections if objections else ["No major microstructure divergences found. Clear runway."],
             "recommended_action": "REDUCE_SIZE_OR_WAIT" if verdict != "PROPOSAL_APPROVED" else "PROCEED",
         }
+

@@ -1,0 +1,92 @@
+{
+  "symbol": "SPX",
+  "spot": 7520.93,
+  "iv30": 15.23,
+  "net_gex_total_b": -70.1927,
+  "net_gex_atm_b": -32.6287,
+  "zero_gex_pivot": 7520.93,
+  "call_wall": 7700.0,
+  "put_wall": 7500.0,
+  "nearest_expiry": "2026-11-10",
+  "pc_ratio_0dte_vol": 1.011,
+  "pc_ratio_oi": 1.368,
+  "gamma_regime": "SHORT_GAMMA_VOLATILE",
+  "contracts_parsed": 11036,
+  "strikes": [
+    {
+      "strike": 7375.0,
+      "call_gex": 761.24,
+      "put_gex": 2908.56,
+      "net_gex": -2147.32
+    },
+    {
+      "strike": 7400.0,
+      "call_gex": 4918.44,
+      "put_gex": 11636.32,
+      "net_gex": -6717.88
+    },
+    {
+      "strike": 7425.0,
+      "call_gex": 1742.88,
+      "put_gex": 4799.88,
+      "net_gex": -3057.0
+    },
+    {
+      "strike": 7450.0,
+      "call_gex": 3740.56,
+      "put_gex": 8681.68,
+      "net_gex": -4941.12
+    },
+    {
+      "strike": 7475.0,
+      "call_gex": 1981.27,
+      "put_gex": 6466.75,
+      "net_gex": -4485.48
+    },
+    {
+      "strike": 7500.0,
+      "call_gex": 8063.36,
+      "put_gex": 18560.37,
+      "net_gex": -10497.01
+    },
+    {
+      "strike": 7525.0,
+      "call_gex": 4052.01,
+      "put_gex": 23259.46,
+      "net_gex": -19207.45
+    },
+    {
+      "strike": 7550.0,
+      "call_gex": 7007.52,
+      "put_gex": 9703.08,
+      "net_gex": -2695.56
+    },
+    {
+      "strike": 7575.0,
+      "call_gex": 4442.76,
+      "put_gex": 7026.34,
+      "net_gex": -2583.58
+    },
+    {
+      "strike": 7600.0,
+      "call_gex": 11537.21,
+      "put_gex": 15152.42,
+      "net_gex": -3615.21
+    },
+    {
+      "strike": 7625.0,
+      "call_gex": 5004.76,
+      "put_gex": 4932.63,
+      "net_gex": 72.13
+    },
+    {
+      "strike": 7650.0,
+      "call_gex": 9715.87,
+      "put_gex": 9543.17,
+      "net_gex": 172.7
+    }
+  ],
+  "last_trade_time": "2026-11-10T16:14:59",
+  "fetched_at_utc": "2026-11-11T05:19:59.973268+00:00",
+  "source": "Cboe Delayed Options Chain API"
+}

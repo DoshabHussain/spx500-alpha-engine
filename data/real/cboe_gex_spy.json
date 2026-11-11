@@ -1,0 +1,98 @@
+{
+  "symbol": "SPY",
+  "spot": 752.5,
+  "iv30": 15.18,
+  "net_gex_total_b": -8.1908,
+  "net_gex_atm_b": -1.2996,
+  "zero_gex_pivot": 752.5,
+  "call_wall": 780.0,
+  "put_wall": 730.0,
+  "nearest_expiry": "2026-11-10",
+  "pc_ratio_0dte_vol": 1.178,
+  "pc_ratio_oi": 1.501,
+  "gamma_regime": "SHORT_GAMMA_VOLATILE",
+  "contracts_parsed": 3858,
+  "strikes": [
+    {
+      "strike": 737.5,
+      "call_gex": 115.81,
+      "put_gex": 320.45,
+      "net_gex": -204.64
+    },
+    {
+      "strike": 740.0,
+      "call_gex": 394.56,
+      "put_gex": 1635.71,
+      "net_gex": -1241.15
+    },
+    {
+      "strike": 742.5,
+      "call_gex": 162.37,
+      "put_gex": 375.14,
+      "net_gex": -212.77
+    },
+    {
+      "strike": 745.0,
+      "call_gex": 533.65,
+      "put_gex": 1820.66,
+      "net_gex": -1287.01
+    },
+    {
+      "strike": 747.5,
+      "call_gex": 285.0,
+      "put_gex": 589.04,
+      "net_gex": -304.04
+    },
+    {
+      "strike": 750.0,
+      "call_gex": 4391.37,
+      "put_gex": 5452.31,
+      "net_gex": -1060.94
+    },
+    {
+      "strike": 752.5,
+      "call_gex": 851.38,
+      "put_gex": 1016.25,
+      "net_gex": -164.87
+    },
+    {
+      "strike": 755.0,
+      "call_gex": 1152.98,
+      "put_gex": 1226.73,
+      "net_gex": -73.75
+    },
+    {
+      "strike": 757.5,
+      "call_gex": 320.41,
+      "put_gex": 454.04,
+      "net_gex": -133.63
+    },
+    {
+      "strike": 760.0,
+      "call_gex": 1068.13,
+      "put_gex": 1086.97,
+      "net_gex": -18.84
+    },
+    {
+      "strike": 762.5,
+      "call_gex": 379.33,
+      "put_gex": 252.47,
+      "net_gex": 126.86
+    },
+    {
+      "strike": 765.0,
+      "call_gex": 792.61,
+      "put_gex": 633.84,
+      "net_gex": 158.77
+    },
+    {
+      "strike": 767.5,
+      "call_gex": 256.94,
+      "put_gex": 232.67,
+      "net_gex": 24.27
+    }
+  ],
+  "last_trade_time": "2026-11-10T15:59:59",
+  "fetched_at_utc": "2026-11-11T05:20:02.893281+00:00",
+  "source": "Cboe Delayed Options Chain API"
+}

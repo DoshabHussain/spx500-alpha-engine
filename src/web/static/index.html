@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPX500 Alpha Engine — Quantitative Trading Workbench</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/vendor/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="topbar">
+      <div class="brand-group">
+        <div class="brand-logo">SPX</div>
+        <div>
+          <h1 class="brand-title">SPX500 Alpha Engine</h1>
+          <p class="brand-subtitle">Intraday 30m Horizon Quantitative Workbench &amp; Autonomous Agent Pipeline</p>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <span id="globalProvenanceBadge" class="badge-prov prov-CACHED_REAL">LOADING</span>
+
+        <div class="segmented" role="group" aria-label="Instrument switcher">
+          <button type="button" id="btnInstrumentSpx" class="active" data-inst="spx">SPX</button>
+          <button type="button" id="btnInstrumentSpy" data-inst="spy">SPY</button>
+        </div>
+
+        <button type="button" id="btnThemeToggle" class="btn">Light Theme</button>
+        <button type="button" id="btnRefreshAll" class="btn btn-primary">Refresh Data</button>
+      </div>
+    </header>
+
+    <!-- Status & Macro Strip -->
+    <div class="status-bar">
+      <div class="macro-strip">
+        <span class="macro-item">Spot: <strong id="stripSpot" class="num">--</strong></span>
+        <span class="macro-item">Day Chg: <strong id="stripChange" class="num">--</strong></span>
+        <span class="macro-item">VIX: <strong id="stripVix" class="num">--</strong></span>
+        <span class="macro-item">US10Y: <strong id="stripUs10y" class="num">--</strong></span>
+        <span class="macro-item">DXY: <strong id="stripDxy" class="num">--</strong></span>
+        <span class="macro-item">Net GEX: <strong id="stripGex" class="num">--</strong></span>
+      </div>
+      <div class="mono" id="stripProvenanceDetail">Initializing telemetry...</div>
+    </div>
+
+    <div id="globalErrorBanner" class="error-banner"></div>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav" aria-label="Primary sections">
+      <button type="button" class="tab-btn active" data-tab="terminal">Trade Terminal</button>
+      <button type="button" class="tab-btn" data-tab="evidence">Model Evidence</button>
+      <button type="button" class="tab-btn" data-tab="market">Market &amp; GEX</button>
+      <button type="button" class="tab-btn" data-tab="ledger">Forward Ledger</button>
+    </nav>
+
+    <!-- TAB 1: TRADE TERMINAL -->
+    <section id="tab-terminal" class="tab-panel active">
+      <div class="grid-terminal-top">
+        <!-- Candlestick Price & Trade Levels Chart -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title" id="chartTitle">SPX 5-Minute Session &amp; Execution Levels</h2>
+              <p class="card-subtitle" id="chartSubtitle">OHLC Candlesticks, VWAP, Entry, Stop Loss, TP1 &amp; TP2</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+          </div>
+          <div id="tvChartContainer" class="tv-chart-box"></div>
+        </div>
+
+        <!-- Hero Trade Plan Card -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Actionable Trade Plan</h2>
+              <p class="card-subtitle">8-Agent Consensus &amp; Empirical Conformal Bounds</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+          </div>
+
+          <div id="tradeCardBanner" class="trade-card-banner NO_TRADE">
+            <div>
+              <div class="level-label">Consensus Decision</div>
+              <div id="tradeSignalText" class="trade-signal-title">--</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="level-label">Committee Score</div>
+              <div id="tradeScoreText" class="num" style="font-size: 16px; font-weight: 700;">--</div>
+            </div>
+          </div>
+
+          <div class="trade-levels-grid">
+            <div class="level-box">
+              <div class="level-label">Entry Reference</div>
+              <div id="lvlEntry" class="level-value num">--</div>
+            </div>
+            <div class="level-box">
+              <div class="level-label">Stop Loss (1.0x ATR)</div>
+              <div id="lvlStop" class="level-value num" style="color: var(--bear);">--</div>
+            </div>
+            <div class="level-box">
+              <div class="level-label">Target 1 (1.5x ATR)</div>
+              <div id="lvlTp1" class="level-value num" style="color: var(--bull);">--</div>
+            </div>
+            <div class="level-box">
+              <div class="level-label">Target 2 (2.5x ATR)</div>
+              <div id="lvlTp2" class="level-value num" style="color: var(--bull);">--</div>
+            </div>
+            <div class="level-box">
+              <div class="level-label">Risk / Reward &amp; Exp. R</div>
+              <div id="lvlRr" class="level-value num">--</div>
+            </div>
+            <div class="level-box">
+              <div class="level-label">Conformal 90% Interval</div>
+              <div id="lvlConformal" class="level-value num" style="font-size: 13px;">--</div>
+            </div>
+          </div>
+
+          <!-- Ensemble 30m Direction Probabilities -->
+          <div style="margin-bottom: 12px;">
+            <div class="prob-row">
+              <span>P(Up)</span>
+              <div class="prob-track"><div id="barProbUp" class="prob-fill" style="width: 33%; background: var(--bull);"></div></div>
+              <span id="txtProbUp" class="num" style="text-align: right;">--</span>
+            </div>
+            <div class="prob-row">
+              <span>P(Flat)</span>
+              <div class="prob-track"><div id="barProbFlat" class="prob-fill" style="width: 34%; background: var(--neutral);"></div></div>
+              <span id="txtProbFlat" class="num" style="text-align: right;">--</span>
+            </div>
+            <div class="prob-row">
+              <span>P(Down)</span>
+              <div class="prob-track"><div id="barProbDown" class="prob-fill" style="width: 33%; background: var(--bear);"></div></div>
+              <span id="txtProbDown" class="num" style="text-align: right;">--</span>
+            </div>
+          </div>
+
+          <p id="tradePlanReason" style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px;"></p>
+
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" id="btnRecordSignal" class="btn btn-primary" style="flex: 1; justify-content: center;">
+              Record to Forward Ledger
+            </button>
+            <button type="button" id="btnResimulate" class="btn">Re-Run Bootstrap</button>
+          </div>
+          <div id="recordStatusMsg" style="font-size: 11px; margin-top: 8px; color: var(--text-secondary);"></div>
+        </div>
+      </div>
+
+      <!-- Bootstrap Fan + SHAP Drivers -->
+      <div class="grid-2 mb-16">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Empirical Bootstrap Path Fan (TimeMachine Agent)</h2>
+              <p id="tmSummarySubtitle" class="card-subtitle">Historical 5m OHLC Return Bootstrap · P5 / P25 / P50 / P75 / P95</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="fanChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Model Feature Contributions (LightGBM TreeSHAP)</h2>
+              <p id="shapSubtitle" class="card-subtitle">Exact additive log-odds drivers on current market bar</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="shapChartCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8-Agent Planning Pipeline -->
+      <div class="card mb-16">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Autonomous Agent Planning Pipeline &amp; Decision Basis (8 Steps)</h2>
+            <p class="card-subtitle">Inspect each agent's live inputs, quantitative rule basis, vote, weight, and output rationale</p>
+          </div>
+          <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+        </div>
+        <div id="agentFlowGrid" class="agent-flow-grid"></div>
+      </div>
+
+      <!-- Committee Chronological Deliberation Trace -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Committee Chronological Deliberation Log</h2>
+            <p class="card-subtitle">Step-by-step trace synthesized by MasterTriEngineAgent</p>
+          </div>
+          <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+        </div>
+        <div id="debateLogList" class="debate-log"></div>
+      </div>
+    </section>
+
+    <!-- TAB 2: MODEL EVIDENCE -->
+    <section id="tab-evidence" class="tab-panel">
+      <div class="grid-4 mb-16">
+        <div class="kpi-card">
+          <div class="kpi-label">Hold-Out Strategy Return</div>
+          <div id="evReturn" class="kpi-val">--</div>
+          <div id="evBenchmarkReturn" class="kpi-sub">Buy &amp; Hold: --</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Annualized Sharpe (95% CI)</div>
+          <div id="evSharpe" class="kpi-val">--</div>
+          <div id="evSharpeCi" class="kpi-sub">Sortino: --</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Max Drawdown / Profit Factor</div>
+          <div id="evDrawdown" class="kpi-val">--</div>
+          <div id="evPf" class="kpi-sub">Win Rate: --</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Purged CV &amp; Leakage Audit</div>
+          <div id="evCvAcc" class="kpi-val">--</div>
+          <div id="evLeakAudit" class="kpi-sub">Overlap: --</div>
+        </div>
+      </div>
+
+      <div class="grid-2 mb-16">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Hold-Out Equity Curve vs Buy &amp; Hold Benchmark</h2>
+              <p class="card-subtitle" id="evHoldoutWindow">Untouched chronological 30% hold-out (5.0 bps slippage + commission)</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
+          </div>
+          <div class="chart-canvas-tall">
+            <canvas id="equityChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Underwater Drawdown Curve (%)</h2>
+              <p class="card-subtitle">Peak-to-trough fixed-grid drawdown on 30% chronological hold-out</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
+          </div>
+          <div class="chart-canvas-tall">
+            <canvas id="drawdownChartCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2 mb-16">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Probability Calibration Reliability Curve</h2>
+              <p id="evBrierSubtitle" class="card-subtitle">Brier Score: -- · ECE: --</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="calibrationChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Hold-Out 3x3 Confusion Matrix</h2>
+              <p class="card-subtitle">Rows: True Label (Down / Flat / Up) · Columns: Predicted Label</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
+          </div>
+          <div id="confusionMatrixWrap" class="cm-grid"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Baseline Comparisons &amp; Statistical Hypothesis Tests</h2>
+            <p class="card-subtitle">Model evaluated against Always-Flat Majority Baseline and Rolling Momentum Baseline</p>
+          </div>
+          <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Benchmark / Metric</th>
+                <th>Purged CV (70% Train)</th>
+                <th>Untouched Hold-Out (30%)</th>
+                <th>Details / Statistical Note</th>
+              </tr>
+            </thead>
+            <tbody id="baselineTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: MARKET & GEX -->
+    <section id="tab-market" class="tab-panel">
+      <div class="grid-4 mb-16">
+        <div class="kpi-card">
+          <div class="kpi-label">Net Dealer Gamma (GEX)</div>
+          <div id="mkNetGex" class="kpi-val">--</div>
+          <div id="mkRegime" class="kpi-sub">Regime: --</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Zero-Gamma Flip Pivot</div>
+          <div id="mkPivot" class="kpi-val">--</div>
+          <div id="mkSource" class="kpi-sub">Option Chain: --</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Call Wall / Put Wall</div>
+          <div id="mkWalls" class="kpi-val">--</div>
+          <div id="mkExpiry" class="kpi-sub">Nearest Expiry: --</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">0DTE P/C Ratio &amp; Vanna/Charm</div>
+          <div id="mkPcRatio" class="kpi-val">--</div>
+          <div id="mkVanna" class="kpi-sub">Vanna: --</div>
+        </div>
+      </div>
+
+      <div class="grid-2 mb-16">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title" id="gexChartTitle">Dealer Gamma Exposure by Strike ($M)</h2>
+              <p class="card-subtitle">Cboe Delayed Option Chain Call GEX, Put GEX &amp; Net GEX around Spot</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+          </div>
+          <div class="chart-canvas-tall">
+            <canvas id="gexChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Cross-Asset Intermarket Matrix &amp; Critic Checks</h2>
+              <p class="card-subtitle">VIX Volatility, US 10Y Treasury Yield, DXY Dollar Index &amp; Event Risk</p>
+            </div>
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+          </div>
+          <div id="intermarketDetails"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Market News &amp; Catalyst Sentiment Feed</h2>
+            <p class="card-subtitle">Real Yahoo Finance RSS headlines scored against index keywords (or labeled DEMO offline)</p>
+          </div>
+          <span id="newsProvBadge" class="badge-prov prov-DEMO">DEMO</span>
+        </div>
+        <div id="newsFeedList" class="news-list"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: FORWARD LEDGER -->
+    <section id="tab-ledger" class="tab-panel">
+      <div class="grid-4 mb-16">
+        <div class="kpi-card">
+          <div class="kpi-label">Recorded Signals</div>
+          <div id="lgTotal" class="kpi-val">0</div>
+          <div id="lgOpenResolved" class="kpi-sub">Open: 0 · Resolved: 0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Forward Win Rate</div>
+          <div id="lgWinRate" class="kpi-val">0.0%</div>
+          <div id="lgPf" class="kpi-sub">Profit Factor: 0.00</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Mean Realized Expectancy</div>
+          <div id="lgExpR" class="kpi-val">0.00R</div>
+          <div class="kpi-sub">Conservative OHLC Stop-First Resolution</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Paper Account Equity</div>
+          <div id="lgEquity" class="kpi-val">$100,000.00</div>
+          <div id="lgPnl" class="kpi-sub">Realized P&amp;L: $0.00</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Forward Paper Trade Audit Ledger (Append-Only JSONL)</h2>
+            <p class="card-subtitle">Zero fabricated history. Record live signals manually from Trade Terminal to evaluate forward accuracy.</p>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+            <button type="button" id="btnLedgerRecord" class="btn btn-primary">Record Current Signal</button>
+            <button type="button" id="btnLedgerClear" class="btn btn-danger">Clear Ledger</button>
+          </div>
+        </div>
+        <div id="ledgerTableContainer"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

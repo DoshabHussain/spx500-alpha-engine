@@ -128,24 +128,21 @@ def compute_microstructure_alpha(df: pd.DataFrame, options_store: Optional[Any] 
         df["regime_high_vol"] = 0
         df["regime_crisis"] = 0
 
-    # 3. Market Breadth proxies ($TICK and $ADD simulation/calculation)
+    # 3. Market Breadth proxies (strictly causal bar-level proxies, zero lookahead)
     if "close" in df.columns and "open" in df.columns:
-        intraday_ret = (df["close"] - df["open"]) / df["open"]
-        df["market_breadth_tick"] = np.tanh(intraday_ret * 400.0) * 1000.0
-        df["market_breadth_add"] = np.tanh(intraday_ret * 250.0) * 2000.0
+        intraday_ret = (df["close"] - df["open"]) / df["open"].replace(0, np.nan)
+        df["market_breadth_tick"] = (np.tanh(intraday_ret.fillna(0.0) * 400.0) * 1000.0)
+        rolling_ret = df["close"].pct_change(6).fillna(0.0)
+        df["market_breadth_add"] = (np.tanh(rolling_ret * 250.0) * 2000.0)
 
-    # 4. Dealer GEX & 0DTE flow
-    calc = MicrostructureGEXCalculator()
-    spot_mean = df["close"].mean() if "close" in df.columns else 500.0
-
-    # Compute Net GEX baseline and intraday variation
-    daily_gex_base = 2.45  # Institutional baseline $2.45B
+    # 4. Causal Dealer GEX & 0DTE flow proxies (uses causal rolling baseline, NEVER full-sample mean)
+    daily_gex_base = 2.45
     if "close" in df.columns:
-        # Pinned when price is stable, expands negative when selling
-        df["net_gex_total_b"] = daily_gex_base + (df["close"] - spot_mean) * 0.05
+        causal_mean = df["close"].rolling(78, min_periods=1).mean()
+        causal_pct_dev = ((df["close"] - causal_mean) / causal_mean.replace(0, np.nan)).fillna(0.0) * 100.0
+        df["net_gex_total_b"] = daily_gex_base + causal_pct_dev * 0.45
         df["net_gex_atm_b"] = df["net_gex_total_b"] * 0.65
-        df["pc_ratio_0dte_vol"] = 0.85 - (df["close"] - spot_mean) * 0.005
-        df["pc_ratio_0dte_vol"] = df["pc_ratio_0dte_vol"].clip(0.3, 2.5)
+        df["pc_ratio_0dte_vol"] = (0.85 - causal_pct_dev * 0.08).clip(0.3, 2.5)
         df["gamma_regime_flag"] = (df["net_gex_total_b"] > 0).astype(int)
     else:
         df["net_gex_total_b"] = daily_gex_base

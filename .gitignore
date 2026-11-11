@@ -22,12 +22,12 @@ aws/credentials
 # ───────────────────────────────────────────────────────────────────────────
 # DATA FILES (TOO LARGE FOR GIT)
 # ───────────────────────────────────────────────────────────────────────────
-data/
+# Data & runtime artifacts
+data/raw/
+data/aligned/
+data/curated/
 runs/
 *.parquet
-*.csv
-*.json
-*.jsonl
 *.feather
 *.h5
 *.hdf5
@@ -38,8 +38,10 @@ runs/
 *.tar.gz
 spx500_final_submission.zip
 
-# Exception: Keep reference data and small fixtures
+# Keep reference data, fixtures, and real-data snapshots summary metadata trackable
 !data/reference/
+!data/reference/*.csv
+!tests/fixtures/
 !tests/fixtures/*.csv
 !tests/fixtures/*.json
 

@@ -1,286 +1,264 @@
 """
-Genesis-500 Enterprise Real-Time Position Tracking & Prediction Ledger Engine.
-Maintains active in-flight trade state, defined-risk options bounds,
-dynamic trailing stops, Greeks factor sensitivities, and empirical prediction accuracy history.
+Genuine Forward-Test Paper Ledger & Defined-Risk Position Tracker.
+Replaces previous fabricated ledger samples with an honest, empty-start
+persistent paper-trading ledger:
+- Starts empty (zero invented trades or fake equity gains)
+- Thread-safe with threading.Lock()
+- Appends OPEN records only when genuine signals are logged
+- Resolves OPEN trades conservatively against real bar highs/lows (Stop checked before Target)
+- Computes win rate, expectancy (R), profit factor, and equity strictly from resolved records
 """
-from typing import Dict, Any, List, Optional
+from __future__ import annotations
+
+import json
+import threading
 from datetime import datetime
-import numpy as np
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+import pytz
+
+NY_TZ = pytz.timezone("America/New_York")
+DEFAULT_LEDGER_PATH = Path(__file__).resolve().parent.parent.parent.parent / "runs" / "paper_ledger.jsonl"
 
 
 class GenesisPositionTracker:
     """
-    Enterprise-grade Order & Execution Management System (OMS/EMS) and
-    Position Tracking engine modeled after modern fintech institutional desks.
+    Thread-safe Forward Paper-Trading Ledger & Defined-Risk OMS.
     """
 
-    def __init__(self, initial_capital: float = 100000.0, risk_per_trade_pct: float = 0.025):
-        self.initial_capital = initial_capital
-        self.account_equity = initial_capital + 4250.0  # +$4,250 realized today
-        self.risk_budget = 2500.0  # $2,500 defined risk budget
-        
-        # Historical prediction audit ledger
-        self.trade_ledger: List[Dict[str, Any]] = self._init_sample_ledger()
-
-    def get_adaptive_position(self, current_spot: float, is_downtrend: bool = True) -> Dict[str, Any]:
-        """
-        Dynamically calibrates active in-flight trade setup based on current market regime.
-        If market has broken down (e.g. today's -4.3% drop to 7,353), takes a Bear Put Spread.
-        If market is rallying, takes a Bull Call Spread.
-        """
-        spot = round(current_spot, 2)
-
-        if is_downtrend:
-            # Short / Bearish Put Debit Spread aligned with today's breakdown
-            entry_price = round(spot + 3.20, 2)
-            target_1 = round(spot - 18.50, 2)
-            target_2 = round(spot - 35.00, 2)
-            stop_price = round(spot + 15.00, 2)
-            
-            return {
-                "trade_id": "SPX-20261106-01",
-                "symbol": "SPX (INDEXSP: .INX)",
-                "strategy": "BEAR PUT DEBIT SPREAD (0DTE)",
-                "instrument": f"Buy SPX {int(spot//10*10)} P / Sell {int(spot//10*10 - 30)} P",
-                "direction": "SHORT",
-                "entry_time": "09:45:15 ET",
-                "entry_price": entry_price,
-                "target_1": target_1,
-                "target_2": target_2,
-                "initial_stop": stop_price,
-                "current_stop": entry_price,  # Trailed to Breakeven
-                "trailing_active": True,
-                "contracts": 8,
-                "risk_amount": self.risk_budget,
-                "max_profit": 5500.0,
-                "status": "IN_FLIGHT_PROFIT",
-                "scale_out_t1_done": False,
-            }
-        else:
-            # Bullish Call Debit Spread
-            entry_price = round(spot - 2.50, 2)
-            target_1 = round(spot + 18.50, 2)
-            target_2 = round(spot + 35.00, 2)
-            stop_price = round(spot - 15.00, 2)
-            
-            return {
-                "trade_id": "SPX-20261106-01",
-                "symbol": "SPX (INDEXSP: .INX)",
-                "strategy": "BULL CALL DEBIT SPREAD (0DTE)",
-                "instrument": f"Buy SPX {int(spot//10*10)} C / Sell {int(spot//10*10 + 30)} C",
-                "direction": "LONG",
-                "entry_time": "09:45:15 ET",
-                "entry_price": entry_price,
-                "target_1": target_1,
-                "target_2": target_2,
-                "initial_stop": stop_price,
-                "current_stop": entry_price,  # Trailed to Breakeven
-                "trailing_active": True,
-                "contracts": 8,
-                "risk_amount": self.risk_budget,
-                "max_profit": 5500.0,
-                "status": "IN_FLIGHT_PROFIT",
-                "scale_out_t1_done": False,
-            }
-
-    def _init_sample_ledger(self) -> List[Dict[str, Any]]:
-        """Verified prediction lifecycle records for Genesis Quant audit."""
-        return [
-            {
-                "trade_id": "SPX-20261106-01",
-                "time": "09:45 ET",
-                "setup": "Breakdown Momentum Put Spread",
-                "direction": "SHORT",
-                "entry_price": 7356.92,
-                "exit_price": 7338.40,
-                "target": 7335.00,
-                "stop": 7372.00,
-                "return_r": 1.74,
-                "pnl_usd": 4350.0,
-                "duration_mins": 45,
-                "consensus_score": 0.84,
-                "outcome": "TARGET_1_HIT",
-                "date": "Today",
-            },
-            {
-                "trade_id": "SPX-20261105-01",
-                "time": "10:14 ET",
-                "setup": "Post-Midterm Tech Squeeze",
-                "direction": "LONG",
-                "entry_price": 7688.62,
-                "exit_price": 7714.00,
-                "target": 7705.00,
-                "stop": 7674.50,
-                "return_r": 1.79,
-                "pnl_usd": 4475.0,
-                "duration_mins": 55,
-                "consensus_score": 0.81,
-                "outcome": "TARGET_2_HIT",
-                "date": "Nov 5",
-            },
-            {
-                "trade_id": "SPX-20261104-02",
-                "time": "12:10 ET",
-                "setup": "Critic Lunch Mean Reversion",
-                "direction": "SHORT",
-                "entry_price": 7578.40,
-                "exit_price": 7578.40,
-                "target": 7562.00,
-                "stop": 7588.00,
-                "return_r": 0.00,
-                "pnl_usd": 0.0,
-                "duration_mins": 40,
-                "consensus_score": 0.54,
-                "outcome": "BREAKEVEN_STOP",
-                "date": "Nov 4",
-            },
-            {
-                "trade_id": "SPX-20261104-01",
-                "time": "09:45 ET",
-                "setup": "15m ORB Breakout",
-                "direction": "LONG",
-                "entry_price": 7552.92,
-                "exit_price": 7572.10,
-                "target": 7570.00,
-                "stop": 7542.00,
-                "return_r": 1.76,
-                "pnl_usd": 4400.0,
-                "duration_mins": 50,
-                "consensus_score": 0.78,
-                "outcome": "TARGET_1_HIT",
-                "date": "Nov 4",
-            },
-            {
-                "trade_id": "SPX-20261103-02",
-                "time": "13:30 ET",
-                "setup": "Yield Relief Rally",
-                "direction": "LONG",
-                "entry_price": 7548.10,
-                "exit_price": 7566.50,
-                "target": 7565.00,
-                "stop": 7538.00,
-                "return_r": 1.82,
-                "pnl_usd": 4550.0,
-                "duration_mins": 65,
-                "consensus_score": 0.72,
-                "outcome": "TARGET_1_HIT",
-                "date": "Nov 3",
-            },
-        ]
-
-    def update_mark_to_market(self, current_spot: float) -> Dict[str, Any]:
-        """
-        Updates live P&L and dynamic trailing stops for active position with
-        STRICT DEFINED-RISK BOUNDS. Max loss can NEVER exceed initial risk budget ($2,500).
-        """
-        # Determine whether session is downtrend or uptrend
-        is_down = current_spot < 7500.0
-        pos = self.get_adaptive_position(current_spot, is_downtrend=is_down)
-        entry = pos["entry_price"]
-        
-        # Calculate points moved in favorable direction
-        if pos["direction"] == "SHORT":
-            pts_gain = entry - current_spot
-        else:
-            pts_gain = current_spot - entry
-
-        spread_delta = 0.42
-        raw_pnl = pts_gain * 100 * pos["contracts"] * spread_delta
-
-        # CRITICAL MATHEMATICAL ENFORCEMENT:
-        # 1. In a defined-risk spread, loss can NEVER exceed the initial risk amount ($2,500)
-        # 2. Max profit is capped by spread width ($5,500)
-        unrealized_pnl = round(max(-pos["risk_amount"], min(pos["max_profit"], raw_pnl)), 2)
-        
-        # If in profit by default in healthy setup, ensure realistic in-flight profit
-        if pts_gain > 0:
-            unrealized_pnl = max(750.0, unrealized_pnl)
-            
-        pnl_pct_risk = round((unrealized_pnl / pos["risk_amount"]) * 100, 1)
-        r_multiple = round(unrealized_pnl / pos["risk_amount"], 2)
-
-        # Dynamic Trailing Stop Rule: If price reaches > 50% toward Target 1, arm breakeven
-        if pts_gain >= 8.0:
-            pos["current_stop"] = entry
-            pos["trailing_active"] = True
-
-        # Check target scale out
-        if pts_gain >= abs(pos["target_1"] - entry):
-            pos["scale_out_t1_done"] = True
-            pos["status"] = "TARGET_1_SCALED_OUT"
-
-        return {
-            "active_trade": pos,
-            "current_spot": round(current_spot, 2),
-            "unrealized_pnl_usd": unrealized_pnl,
-            "pnl_pct_on_risk": pnl_pct_risk,
-            "r_multiple": r_multiple,
-            "points_in_favor": round(pts_gain, 2),
-            "distance_to_target_1": round(abs(pos["target_1"] - current_spot), 2),
-            "distance_to_stop": round(abs(current_spot - pos["current_stop"]), 2),
-            "trailing_stop_level": pos["current_stop"],
-            "breakeven_locked": pos["current_stop"] == entry,
-        }
-
-    def compute_factor_risk(
+    def __init__(
         self,
-        current_spot: float = 7353.73,
-        net_gex_b: float = 5.12,
-        vix_level: float = 16.61,
+        initial_capital: float = 100000.0,
+        risk_per_trade_pct: float = 0.01,
+        ledger_path: Optional[Path] = DEFAULT_LEDGER_PATH,
+    ):
+        self.initial_capital = float(initial_capital)
+        self.risk_per_trade_pct = float(risk_per_trade_pct)
+        self.risk_budget = round(self.initial_capital * self.risk_per_trade_pct, 2)
+        self.ledger_path = Path(ledger_path) if ledger_path is not None else None
+        self._lock = threading.Lock()
+        self.trade_ledger: List[Dict[str, Any]] = []
+        self._load_persisted_ledger()
+
+    def _load_persisted_ledger(self) -> None:
+        if self.ledger_path is None or not self.ledger_path.exists():
+            return
+        rows: List[Dict[str, Any]] = []
+        try:
+            for line in self.ledger_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    rows.append(json.loads(line))
+            self.trade_ledger = rows
+        except Exception:
+            self.trade_ledger = []
+
+    def _persist_ledger_locked(self) -> None:
+        if self.ledger_path is None:
+            return
+        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        content = "\n".join(json.dumps(r) for r in self.trade_ledger)
+        if content:
+            content += "\n"
+        self.ledger_path.write_text(content, encoding="utf-8")
+
+    def clear_ledger(self) -> Dict[str, Any]:
+        with self._lock:
+            self.trade_ledger = []
+            self._persist_ledger_locked()
+            return self._compute_metrics_locked()
+
+    def record_signal(
+        self,
+        trade_plan: Dict[str, Any],
+        provenance: str = "DELAYED",
+        instrument_label: str = "SPX",
     ) -> Dict[str, Any]:
         """
-        Computes enterprise risk factor sensitivities.
+        Record a real trade plan emitted by the Quant Committee as an OPEN forward-test entry.
+        Refuses to record NO_TRADE plans.
         """
+        signal_dir = str(trade_plan.get("signal", "NO_TRADE")).upper()
+        if signal_dir not in ("LONG", "SHORT"):
+            return {"recorded": False, "reason": f"Signal '{signal_dir}' is not directional (NO_TRADE)."}
+
+        entry = float(trade_plan["entry"])
+        stop_loss = float(trade_plan["stop_loss"])
+        tp1 = float(trade_plan["tp1"])
+        tp2 = float(trade_plan.get("tp2", tp1))
+        risk_pts = abs(entry - stop_loss)
+        if risk_pts <= 0:
+            return {"recorded": False, "reason": "Zero stop distance."}
+
+        now_ny = datetime.now(NY_TZ)
+        with self._lock:
+            trade_id = f"{instrument_label}-{now_ny.strftime('%Y%m%d-%H%M%S')}-{len(self.trade_ledger) + 1:02d}"
+            record = {
+                "trade_id": trade_id,
+                "timestamp": now_ny.isoformat(),
+                "time": now_ny.strftime("%H:%M:%S ET"),
+                "date": now_ny.strftime("%Y-%m-%d"),
+                "instrument": instrument_label,
+                "setup": trade_plan.get("mandate", signal_dir),
+                "direction": signal_dir,
+                "entry_price": round(entry, 2),
+                "exit_price": None,
+                "target": round(tp1, 2),
+                "target_2": round(tp2, 2),
+                "stop": round(stop_loss, 2),
+                "current_stop": round(stop_loss, 2),
+                "trailing_active": False,
+                "risk_budget_usd": self.risk_budget,
+                "return_r": 0.0,
+                "pnl_usd": 0.0,
+                "outcome": "OPEN",
+                "provenance": provenance,
+                "reason": trade_plan.get("reason", ""),
+            }
+            self.trade_ledger.insert(0, record)
+            self._persist_ledger_locked()
+            return {"recorded": True, "trade": dict(record)}
+
+    def evaluate_against_bar(
+        self,
+        current_spot: float,
+        bar_high: Optional[float] = None,
+        bar_low: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Conservatively evaluate all OPEN forward-test signals against real bar OHLC.
+        Stop loss is always checked BEFORE target to avoid optimistic tie bias.
+        """
+        hi = float(bar_high if bar_high is not None else current_spot)
+        lo = float(bar_low if bar_low is not None else current_spot)
+        spot = float(current_spot)
+        now_ny = datetime.now(NY_TZ)
+        changed = False
+
+        with self._lock:
+            for rec in self.trade_ledger:
+                if rec.get("outcome") != "OPEN":
+                    continue
+                entry = float(rec["entry_price"])
+                stop = float(rec["current_stop"])
+                target = float(rec["target"])
+                risk_pts = max(abs(entry - float(rec["stop"])), 1e-6)
+                risk_usd = float(rec.get("risk_budget_usd", self.risk_budget))
+
+                if rec["direction"] == "LONG":
+                    # Stop first (conservative)
+                    if lo <= stop:
+                        rec["exit_price"] = round(stop, 2)
+                        r_mult = round((stop - entry) / risk_pts, 2)
+                        rec["return_r"] = max(-1.0, r_mult)
+                        rec["pnl_usd"] = round(rec["return_r"] * risk_usd, 2)
+                        rec["outcome"] = "BREAKEVEN_STOP" if abs(r_mult) < 0.05 else "STOP_HIT"
+                        rec["resolved_at"] = now_ny.isoformat()
+                        changed = True
+                    elif hi >= target:
+                        rec["exit_price"] = round(target, 2)
+                        r_mult = round((target - entry) / risk_pts, 2)
+                        rec["return_r"] = r_mult
+                        rec["pnl_usd"] = round(r_mult * risk_usd, 2)
+                        rec["outcome"] = "TARGET_1_HIT"
+                        rec["resolved_at"] = now_ny.isoformat()
+                        changed = True
+                    else:
+                        # Unrealized mark-to-market; arm breakeven once >= 50% toward TP1
+                        fav = spot - entry
+                        if fav >= 0.5 * abs(target - entry) and not rec.get("trailing_active"):
+                            rec["current_stop"] = entry
+                            rec["trailing_active"] = True
+                            changed = True
+                        r_live = max(-1.0, round(fav / risk_pts, 2))
+                        rec["return_r"] = r_live
+                        rec["pnl_usd"] = round(r_live * risk_usd, 2)
+                else:  # SHORT
+                    if hi >= stop:
+                        rec["exit_price"] = round(stop, 2)
+                        r_mult = round((entry - stop) / risk_pts, 2)
+                        rec["return_r"] = max(-1.0, r_mult)
+                        rec["pnl_usd"] = round(rec["return_r"] * risk_usd, 2)
+                        rec["outcome"] = "BREAKEVEN_STOP" if abs(r_mult) < 0.05 else "STOP_HIT"
+                        rec["resolved_at"] = now_ny.isoformat()
+                        changed = True
+                    elif lo <= target:
+                        rec["exit_price"] = round(target, 2)
+                        r_mult = round((entry - target) / risk_pts, 2)
+                        rec["return_r"] = r_mult
+                        rec["pnl_usd"] = round(r_mult * risk_usd, 2)
+                        rec["outcome"] = "TARGET_1_HIT"
+                        rec["resolved_at"] = now_ny.isoformat()
+                        changed = True
+                    else:
+                        fav = entry - spot
+                        if fav >= 0.5 * abs(entry - target) and not rec.get("trailing_active"):
+                            rec["current_stop"] = entry
+                            rec["trailing_active"] = True
+                            changed = True
+                        r_live = max(-1.0, round(fav / risk_pts, 2))
+                        rec["return_r"] = r_live
+                        rec["pnl_usd"] = round(r_live * risk_usd, 2)
+
+            if changed:
+                self._persist_ledger_locked()
+
+            open_trades = [dict(r) for r in self.trade_ledger if r.get("outcome") == "OPEN"]
+            metrics = self._compute_metrics_locked()
+
         return {
-            "factors": [
-                {
-                    "factor_name": "Portfolio Delta Sensitivity",
-                    "exposure": "-0.38 Delta (Short Bias)" if current_spot < 7500 else "+0.42 Delta",
-                    "dollar_sensitivity": "Hedging downside momentum",
-                    "status": "PROTECTED_DELTA",
-                    "color": "text-sky-400",
-                },
-                {
-                    "factor_name": "Dealer Net Gamma (GEX)",
-                    "exposure": f"+${net_gex_b:.2f}B GEX",
-                    "dollar_sensitivity": "Long Gamma pins price / lowers ATR",
-                    "status": "VOL_PINNING",
-                    "color": "text-indigo-400",
-                },
-                {
-                    "factor_name": "Portfolio Vega Sensitivity",
-                    "exposure": "-$1,250 / 1.0 vol pt",
-                    "dollar_sensitivity": "Spread structure insulates against IV expansion",
-                    "status": "DEFINED_VEGA",
-                    "color": "text-cyan-400",
-                },
-                {
-                    "factor_name": "0DTE Theta Decay Rate",
-                    "exposure": "-$145 / hour",
-                    "dollar_sensitivity": "Offset by short spread wing; hard exit 15:45 ET",
-                    "status": "THETA_BOUNDED",
-                    "color": "text-amber-400",
-                },
-            ],
-            "var_99_1d": "$2,500.00 (Max Defined Risk Budget)",
+            "open_count": len(open_trades),
+            "active_trade": open_trades[0] if open_trades else None,
+            "current_spot": round(spot, 2),
+            "ledger_metrics": metrics,
+        }
+
+    def update_mark_to_market(self, current_spot: float, bar_high: Optional[float] = None, bar_low: Optional[float] = None) -> Dict[str, Any]:
+        """Wrapper updating open forward trades and returning honest account equity."""
+        eval_res = self.evaluate_against_bar(current_spot, bar_high=bar_high, bar_low=bar_low)
+        metrics = eval_res["ledger_metrics"]
+        active = eval_res["active_trade"]
+        unrealized = float(active["pnl_usd"]) if active else 0.0
+        r_live = float(active["return_r"]) if active else 0.0
+
+        return {
+            "has_active_position": active is not None,
+            "active_trade": active,
+            "current_spot": round(current_spot, 2),
+            "unrealized_pnl_usd": round(unrealized, 2),
+            "r_multiple": r_live,
+            "account_equity": round(self.initial_capital + metrics["total_realized_pnl"] + unrealized, 2),
+            "realized_pnl_usd": metrics["total_realized_pnl"],
+            "risk_budget_usd": self.risk_budget,
+        }
+
+    def _compute_metrics_locked(self) -> Dict[str, Any]:
+        resolved = [t for t in self.trade_ledger if t.get("outcome") != "OPEN"]
+        open_list = [t for t in self.trade_ledger if t.get("outcome") == "OPEN"]
+
+        n_resolved = len(resolved)
+        wins = [t for t in resolved if float(t.get("pnl_usd", 0.0)) > 0]
+        losses = [t for t in resolved if float(t.get("pnl_usd", 0.0)) < 0]
+
+        win_rate = round((len(wins) / n_resolved) * 100.0, 1) if n_resolved > 0 else 0.0
+        total_pnl = round(sum(float(t.get("pnl_usd", 0.0)) for t in resolved), 2)
+        avg_r = round(sum(float(t.get("return_r", 0.0)) for t in resolved) / n_resolved, 2) if n_resolved > 0 else 0.0
+        gross_win = sum(float(t["pnl_usd"]) for t in wins)
+        gross_loss = abs(sum(float(t["pnl_usd"]) for t in losses))
+        profit_factor = round(gross_win / gross_loss, 2) if gross_loss > 0 else (round(gross_win, 2) if gross_win > 0 else 0.0)
+
+        return {
+            "total_signals": len(self.trade_ledger),
+            "open_signals": len(open_list),
+            "resolved_signals": n_resolved,
+            "win_rate_pct": win_rate,
+            "profit_factor": profit_factor,
+            "expectancy_r": avg_r,
+            "total_realized_pnl": total_pnl,
+            "account_equity": round(self.initial_capital + total_pnl, 2),
+            "recent_trades": [dict(t) for t in self.trade_ledger[:25]],
         }
 
     def get_ledger_metrics(self) -> Dict[str, Any]:
-        """Computes statistical audit metrics across all recorded predictions."""
-        trades = self.trade_ledger
-        total = len(trades)
-        wins = [t for t in trades if t["return_r"] > 0]
-        
-        win_rate = (len(wins) / total) * 100 if total > 0 else 0
-        total_pnl = sum(t["pnl_usd"] for t in trades)
-        avg_r = sum(t["return_r"] for t in trades) / total if total > 0 else 0
-        profit_factor = 2.45
-
-        return {
-            "total_predictions": total,
-            "win_rate_pct": round(win_rate, 1),
-            "profit_factor": profit_factor,
-            "expectancy_r": round(avg_r, 2),
-            "total_realized_pnl": total_pnl,
-            "recent_trades": trades[:6],
-        }
+        with self._lock:
+            return self._compute_metrics_locked()

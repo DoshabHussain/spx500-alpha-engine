@@ -11,12 +11,29 @@ Implements:
 
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from datetime import datetime, time
 from typing import Optional, List
+
+import pandas as pd
+import numpy as np
+import pytz
 
 from src.core import get_logger, get_calendar
 
 logger = get_logger(__name__)
+
+_CALENDAR_PATH = Path(__file__).resolve().parent.parent.parent.parent / "data" / "reference" / "economic_calendar.csv"
+_NY_TZ = pytz.timezone("America/New_York")
+
+
+def _load_economic_calendar() -> pd.DataFrame:
+    """Load scheduled FOMC/CPI/NFP events from CSV with NY timezone awareness."""
+    if _CALENDAR_PATH.exists():
+        cal_df = pd.read_csv(_CALENDAR_PATH)
+        cal_df["timestamp_et"] = pd.to_datetime(cal_df["timestamp_et"]).dt.tz_localize(_NY_TZ)
+        return cal_df.sort_values("timestamp_et").reset_index(drop=True)
+    return pd.DataFrame(columns=["event_type", "timestamp_et", "description"])
 
 
 class RegimeFeatures:
@@ -110,101 +127,72 @@ class RegimeFeatures:
         fomc_dates: Optional[List[datetime]] = None,
     ) -> pd.DataFrame:
         """
-        Calculate FOMC day flags.
-        
-        Args:
-            df: DataFrame with timestamp column
-            timestamp_col: Column name for timestamps
-            fomc_dates: List of FOMC decision dates (if None, uses a default list)
-            
-        Returns:
-            DataFrame with is_fomc_day column
+        Calculate FOMC decision day flags from reference calendar.
         """
         df = df.copy()
-        
-        # Default FOMC dates for 2025 (update as needed)
+
         if fomc_dates is None:
-            fomc_dates = [
-                datetime(2025, 1, 29),   # Jan FOMC
-                datetime(2025, 3, 19),   # Mar FOMC
-                datetime(2025, 5, 7),    # May FOMC
-                datetime(2025, 6, 18),   # Jun FOMC
-                datetime(2025, 7, 30),   # Jul FOMC
-                datetime(2025, 9, 17),   # Sep FOMC
-                datetime(2025, 11, 5),   # Nov FOMC
-                datetime(2025, 12, 17),  # Dec FOMC
-            ]
-        
-        # Extract date only
-        df['_date'] = pd.to_datetime(df[timestamp_col]).dt.date
-        fomc_dates_only = [d.date() for d in fomc_dates]
-        
-        # Flag FOMC days
-        df['is_fomc_day'] = df['_date'].isin(fomc_dates_only).astype(int)
-        
-        df = df.drop('_date', axis=1)
-        
-        logger.info("Calculated FOMC flags", fomc_days=df['is_fomc_day'].sum())
+            cal_df = _load_economic_calendar()
+            if not cal_df.empty:
+                fomc_dates_only = cal_df.loc[cal_df["event_type"] == "FOMC", "timestamp_et"].dt.date.tolist()
+            else:
+                fomc_dates_only = []
+        else:
+            fomc_dates_only = [d.date() for d in fomc_dates]
+
+        ts = pd.to_datetime(df[timestamp_col])
+        if ts.dt.tz is not None:
+            ts = ts.dt.tz_convert(_NY_TZ)
+        df['is_fomc_day'] = ts.dt.date.isin(fomc_dates_only).astype(int)
+
+        logger.info("Calculated FOMC flags", fomc_days=int(df['is_fomc_day'].sum()))
         return df
-    
+
     def calculate_minutes_to_event(
         self,
         df: pd.DataFrame,
         timestamp_col: str = "timestamp",
         event_times: Optional[List[datetime]] = None,
+        max_minutes_cap: float = 10080.0,
     ) -> pd.DataFrame:
         """
-        Calculate minutes until next major event (CPI, FOMC, NFP, etc.).
-        
-        Args:
-            df: DataFrame with timestamp column
-            timestamp_col: Column name for timestamps
-            event_times: List of event datetimes (if None, uses defaults)
-            
-        Returns:
-            DataFrame with minutes_to_event column
+        Calculate minutes until next scheduled macro event (CPI, FOMC, NFP).
         """
         df = df.copy()
-        
-        # Default major events for 2025 (update as needed)
+
         if event_times is None:
-            event_times = [
-                # FOMC decisions (2:00 PM ET)
-                datetime(2025, 1, 29, 14, 0),
-                datetime(2025, 3, 19, 14, 0),
-                datetime(2025, 5, 7, 14, 0),
-                # CPI releases (8:30 AM ET, usually mid-month)
-                datetime(2025, 2, 13, 8, 30),
-                datetime(2025, 3, 12, 8, 30),
-                datetime(2025, 4, 10, 8, 30),
-                # NFP (Non-Farm Payrolls - first Friday, 8:30 AM ET)
-                datetime(2025, 2, 7, 8, 30),
-                datetime(2025, 3, 7, 8, 30),
-                datetime(2025, 4, 4, 8, 30),
-            ]
-        
-        event_times = pd.to_datetime(event_times)
-        
-        # Match timezone with input timestamps
-        ts_series = pd.to_datetime(df[timestamp_col])
-        if len(ts_series) > 0 and getattr(ts_series.iloc[0], "tzinfo", None) is not None:
-            tz = ts_series.iloc[0].tz
-            event_times = event_times.tz_localize(tz)
-        
-        # For each timestamp, find the next event
-        minutes_to_next = []
-        for ts in ts_series:
-            future_events = event_times[event_times > ts]
-            if len(future_events) > 0:
-                next_event = future_events[0]
-                minutes = (next_event - ts).total_seconds() / 60
-                minutes_to_next.append(minutes)
+            cal_df = _load_economic_calendar()
+            if not cal_df.empty:
+                event_ns = cal_df["timestamp_et"].dt.tz_convert("UTC").astype("int64").values
             else:
-                minutes_to_next.append(np.nan)
-        
-        df['minutes_to_event'] = minutes_to_next
-        
-        logger.info("Calculated minutes_to_event", non_null=df['minutes_to_event'].notna().sum())
+                event_ns = np.array([], dtype="int64")
+        else:
+            ev = pd.to_datetime(event_times)
+            if ev.tz is None:
+                ev = ev.tz_localize(_NY_TZ)
+            event_ns = ev.tz_convert("UTC").sort_values().astype("int64").values
+
+        ts_series = pd.to_datetime(df[timestamp_col])
+        if ts_series.dt.tz is None:
+            ts_utc = ts_series.dt.tz_localize(_NY_TZ).dt.tz_convert("UTC")
+        else:
+            ts_utc = ts_series.dt.tz_convert("UTC")
+
+        ts_ns = ts_utc.astype("int64").values
+        if len(event_ns) == 0:
+            df['minutes_to_event'] = max_minutes_cap
+        else:
+            idx = np.searchsorted(event_ns, ts_ns, side="right")
+            minutes_list = []
+            for pos, t_val in zip(idx, ts_ns):
+                if pos < len(event_ns):
+                    mins = (event_ns[pos] - t_val) / (1e9 * 60.0)
+                    minutes_list.append(min(max_minutes_cap, float(mins)))
+                else:
+                    minutes_list.append(max_minutes_cap)
+            df['minutes_to_event'] = minutes_list
+
+        logger.info("Calculated minutes_to_event", non_null=int(df['minutes_to_event'].notna().sum()))
         return df
     
     def calculate_all_regime_features(

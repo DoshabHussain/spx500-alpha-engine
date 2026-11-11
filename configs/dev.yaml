@@ -59,7 +59,7 @@ data_sources:
     period: 60d # Development: 60 trading days of 5m intraday history
     rate_limit:
       calls_per_hour: 2000
-      delay_seconds: 0.5
+      delay_seconds: 0.1
     retry:
       max_attempts: 3
       backoff_factor: 2

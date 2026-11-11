@@ -1,0 +1,64 @@
+{
+  "fetched_at_utc": "2026-11-11T05:19:30.092387+00:00",
+  "symbols": {
+    "SPY": {
+      "symbol": "SPY",
+      "spot": 749.92,
+      "prev_close": 772.67,
+      "regular_market_time_utc": "2026-11-10T21:00:00+00:00",
+      "fetched_at_utc": "2026-11-11T05:19:33.765896+00:00",
+      "bars": 4681,
+      "source": "Yahoo Finance Chart v8 (Delayed)"
+    },
+    "^GSPC": {
+      "symbol": "^GSPC",
+      "spot": 7520.93,
+      "prev_close": 7745.06,
+      "regular_market_time_utc": "2026-11-10T22:00:31+00:00",
+      "fetched_at_utc": "2026-11-11T05:19:37.581631+00:00",
+      "bars": 4681,
+      "source": "Yahoo Finance Chart v8 (Delayed)"
+    },
+    "^VIX": {
+      "symbol": "^VIX",
+      "spot": 19.46,
+      "prev_close": 14.89,
+      "regular_market_time_utc": "2026-11-10T21:15:01+00:00",
+      "fetched_at_utc": "2026-11-11T05:19:47.217051+00:00",
+      "bars": 9305,
+      "source": "Yahoo Finance Chart v8 (Delayed)"
+    },
+    "^TNX": {
+      "symbol": "^TNX",
+      "spot": 4.983,
+      "prev_close": 4.706,
+      "regular_market_time_utc": "2026-11-10T19:59:54+00:00",
+      "fetched_at_utc": "2026-11-11T05:19:50.095576+00:00",
+      "bars": 4080,
+      "source": "Yahoo Finance Chart v8 (Delayed)"
+    },
+    "DX-Y.NYB": {
+      "symbol": "DX-Y.NYB",
+      "spot": 102.234,
+      "prev_close": 99.56,
+      "regular_market_time_utc": "2026-11-11T05:09:49+00:00",
+      "fetched_at_utc": "2026-11-11T05:19:53.748923+00:00",
+      "bars": 13112,
+      "source": "Yahoo Finance Chart v8 (Delayed)"
+    }
+  },
+  "cboe_gex": {
+    "_SPX": {
+      "spot": 7520.93,
+      "net_gex_total_b": -70.1927,
+      "zero_gex_pivot": 7520.93,
+      "contracts_parsed": 11036
+    },
+    "SPY": {
+      "spot": 752.5,
+      "net_gex_total_b": -8.1908,
+      "zero_gex_pivot": 752.5,
+      "contracts_parsed": 3858
+    }
+  }
+}

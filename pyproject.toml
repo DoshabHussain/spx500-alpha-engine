@@ -4,112 +4,74 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spx500-forecasting"
-version = "1.0.0"
-description = "SPX retail options flow forecasting system"
+version = "2.0.0"
+description = "SPX 500 Intraday Forecasting Prototype with Purged Walk-Forward CV, Multi-Agent Planning & Cboe GEX Analytics"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "Proprietary"}
+license = {text = "MIT"}
 authors = [
-    {name = "Khurram", email = "khurram@example.com"}
+    {name = "Doshab Hussain"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
     "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Office/Business :: Financial :: Investment",
 ]
 
 dependencies = [
     # Core Data & Scientific Computing
-    "numpy==1.26.4",
-    "pandas==2.2.0",
-    "scipy==1.12.0",
-    "pyarrow==15.0.0",           # Parquet I/O
-    
+    "numpy>=1.26.4,<3.0",
+    "pandas>=2.2.0,<3.0",
+    "scipy>=1.12.0",
+    "pyarrow>=15.0.0",
+
     # Configuration & Validation
-    "pydantic==2.6.1",
-    "pydantic-settings==2.1.0",
-    "python-dotenv==1.0.1",
-    "pyyaml==6.0.1",
-    
+    "pydantic>=2.6.1",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.1",
+
     # Date & Time Handling
-    "python-dateutil==2.8.2",
-    "pytz==2024.1",
-    "pandas-market-calendars==4.3.3",  # Trading calendars
-    
-    # Data Acquisition (Phase 1: Free sources)
-    "yfinance==0.2.36",          # SPX/SPY price data
-    "fredapi==0.5.1",            # FRED economic data
-    
-    # HTTP & API
-    "requests==2.31.0",
-    "aiohttp==3.9.3",
-    "httpx==0.26.0",
-    
-    # CLI & Logging
-    "click==8.1.7",
-    "rich==13.7.0",              # Beautiful terminal output
-    "structlog==24.1.0",         # Structured logging
-    
-    # File I/O & Hashing
-    "fsspec==2024.2.0",
-    "xxhash==3.4.1",             # Fast file hashing for manifests
-    
-    # Testing & Quality
-    "pytest==8.0.0",
-    "pytest-cov==4.1.0",
-    "pytest-mock==3.12.0",
-    "hypothesis==6.98.3",        # Property-based testing
+    "python-dateutil>=2.8.2",
+    "pytz>=2024.1",
+    "pandas-market-calendars>=4.3.3",
+
+    # Modeling & Analytics
+    "scikit-learn>=1.4.0",
+    "lightgbm>=4.3.0",
+    "joblib>=1.3.2",
+
+    # Data Acquisition & Utilities
+    "yfinance>=0.2.36",
+    "requests>=2.31.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "structlog>=24.1.0",
+    "fsspec>=2024.2.0",
+    "xxhash>=3.4.1",
+
+    # Testing
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
 ]
 
 [project.optional-dependencies]
-# Phase 2: Paid data sources
-phase2 = [
-    "polygon-api-client==1.13.2",  # Polygon.io
-    # ORATS has no official Python client - we'll use requests
-]
-
-# Phase 3+: Machine Learning
-ml = [
-    "scikit-learn==1.4.0",
-    "lightgbm==4.3.0",
-    "xgboost==2.0.3",
-    "optuna==3.5.0",             # Hyperparameter tuning
-]
-
-# Phase 4+: Advanced models
-advanced = [
-    "torch==2.2.0",
-    "transformers==4.37.2",
-]
-
-# Development tools
 dev = [
-    "ipython==8.21.0",
-    "jupyter==1.0.0",
-    "black==24.2.0",             # Code formatting
-    "ruff==0.2.1",               # Fast linter
-    "mypy==1.8.0",               # Type checking
-    "pre-commit==3.6.0",
-]
-
-# Visualization
-viz = [
-    "matplotlib==3.8.2",
-    "seaborn==0.13.2",
-    "plotly==5.18.0",
-]
-
-# All extras
-all = [
-    "spx500-forecasting[phase2,ml,advanced,dev,viz]"
+    "black>=24.2.0",
+    "ruff>=0.2.1",
+    "mypy>=1.8.0",
 ]
 
 [project.scripts]
-spx-ingest = "src.cli.ingest:main"
-spx-process = "src.cli.process:main"
-spx-train = "src.cli.train:main"
-spx-predict = "src.cli.predict:main"
+spx-pipeline = "run_all:main"
+spx-ingest = "scripts.run_ingest:main"
+spx-train = "scripts.run_training:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

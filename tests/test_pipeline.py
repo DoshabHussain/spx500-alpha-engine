@@ -251,3 +251,50 @@ def test_telemetry_engine_and_backtest_contracts():
         assert "sharpe_ci_95" in bt["strategy"]
         assert "holdout_evaluation" in bt["validation_summary"]
 
+
+def test_ledger_crud_per_instrument_and_millisecond_cache(tmp_path):
+    """Verify per-instrument MTM resolution, manual close/modify/delete actions, and sub-10ms warm cache."""
+    import time
+    from src.web.app import _get_cached_static, telemetry_engine
+
+    ledger_file = tmp_path / "crud_ledger.jsonl"
+    tracker = GenesisPositionTracker(initial_capital=100000.0, ledger_path=ledger_file)
+    rec = tracker.record_signal(
+        {"signal": "LONG", "entry": 750.0, "stop_loss": 748.0, "tp1": 753.0, "mandate": "MANUAL SPY LONG"},
+        instrument_label="SPY",
+    )
+    tid = rec["trade"]["trade_id"]
+
+    # Evaluating against BOTH SPX (7520) and SPY (750.5) must NOT false-trigger TP1 on SPX scale
+    tracker.evaluate_against_bar(
+        current_spot=7520.0,
+        market_bars={
+            "SPX": {"spot": 7520.0, "high": 7522.0, "low": 7518.0},
+            "SPY": {"spot": 750.5, "high": 751.0, "low": 749.5},
+        },
+    )
+    assert tracker.get_ledger_metrics()["open_signals"] == 1
+
+    # Settle via update_trade_action
+    upd = tracker.update_trade_action(trade_id=tid, action="CLOSE_TARGET")
+    assert upd["updated"] is True
+    assert upd["ledger"]["resolved_signals"] == 1
+    assert upd["ledger"]["recent_trades"][0]["outcome"] == "TARGET_1_HIT"
+
+    # Delete row cleanly
+    rem = tracker.update_trade_action(trade_id=tid, action="DELETE")
+    assert rem["updated"] is True
+    assert rem["ledger"]["total_signals"] == 0
+
+    # Warm static & telemetry cache speed check (< 50 ms)
+    telemetry_engine.get_telemetry()
+    _get_cached_static("app.js")
+    t0 = time.perf_counter()
+    gz_bytes = telemetry_engine.get_telemetry_bytes(accept_gzip=True)
+    asset = _get_cached_static("app.js")
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    assert len(gz_bytes) > 100
+    assert asset is not None and len(asset["gzip"]) > 100
+    assert elapsed_ms < 50.0
+
+

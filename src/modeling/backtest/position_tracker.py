@@ -11,6 +11,7 @@ persistent paper-trading ledger:
 from __future__ import annotations
 
 import json
+import math
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -124,14 +125,16 @@ class GenesisPositionTracker:
         current_spot: float,
         bar_high: Optional[float] = None,
         bar_low: Optional[float] = None,
+        market_bars: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Dict[str, Any]:
         """
         Conservatively evaluate all OPEN forward-test signals against real bar OHLC.
+        Uses per-instrument OHLC from `market_bars` when provided (SPX vs SPY).
         Stop loss is always checked BEFORE target to avoid optimistic tie bias.
         """
-        hi = float(bar_high if bar_high is not None else current_spot)
-        lo = float(bar_low if bar_low is not None else current_spot)
-        spot = float(current_spot)
+        default_hi = float(bar_high if bar_high is not None else current_spot)
+        default_lo = float(bar_low if bar_low is not None else current_spot)
+        default_spot = float(current_spot)
         now_ny = datetime.now(NY_TZ)
         changed = False
 
@@ -139,6 +142,15 @@ class GenesisPositionTracker:
             for rec in self.trade_ledger:
                 if rec.get("outcome") != "OPEN":
                     continue
+                inst_key = str(rec.get("instrument", "SPX")).upper()
+                inst_bar = (market_bars or {}).get(inst_key)
+                if inst_bar:
+                    spot = float(inst_bar.get("spot", default_spot))
+                    hi = float(inst_bar.get("high", spot))
+                    lo = float(inst_bar.get("low", spot))
+                else:
+                    spot, hi, lo = default_spot, default_hi, default_lo
+
                 entry = float(rec["entry_price"])
                 stop = float(rec["current_stop"])
                 target = float(rec["target"])
@@ -146,7 +158,6 @@ class GenesisPositionTracker:
                 risk_usd = float(rec.get("risk_budget_usd", self.risk_budget))
 
                 if rec["direction"] == "LONG":
-                    # Stop first (conservative)
                     if lo <= stop:
                         rec["exit_price"] = round(stop, 2)
                         r_mult = round((stop - entry) / risk_pts, 2)
@@ -164,15 +175,17 @@ class GenesisPositionTracker:
                         rec["resolved_at"] = now_ny.isoformat()
                         changed = True
                     else:
-                        # Unrealized mark-to-market; arm breakeven once >= 50% toward TP1
                         fav = spot - entry
                         if fav >= 0.5 * abs(target - entry) and not rec.get("trailing_active"):
                             rec["current_stop"] = entry
                             rec["trailing_active"] = True
                             changed = True
                         r_live = max(-1.0, round(fav / risk_pts, 2))
-                        rec["return_r"] = r_live
-                        rec["pnl_usd"] = round(r_live * risk_usd, 2)
+                        pnl_live = round(r_live * risk_usd, 2)
+                        if rec.get("return_r") != r_live or rec.get("pnl_usd") != pnl_live:
+                            rec["return_r"] = r_live
+                            rec["pnl_usd"] = pnl_live
+                            changed = True
                 else:  # SHORT
                     if hi >= stop:
                         rec["exit_price"] = round(stop, 2)
@@ -197,8 +210,11 @@ class GenesisPositionTracker:
                             rec["trailing_active"] = True
                             changed = True
                         r_live = max(-1.0, round(fav / risk_pts, 2))
-                        rec["return_r"] = r_live
-                        rec["pnl_usd"] = round(r_live * risk_usd, 2)
+                        pnl_live = round(r_live * risk_usd, 2)
+                        if rec.get("return_r") != r_live or rec.get("pnl_usd") != pnl_live:
+                            rec["return_r"] = r_live
+                            rec["pnl_usd"] = pnl_live
+                            changed = True
 
             if changed:
                 self._persist_ledger_locked()
@@ -209,13 +225,88 @@ class GenesisPositionTracker:
         return {
             "open_count": len(open_trades),
             "active_trade": open_trades[0] if open_trades else None,
-            "current_spot": round(spot, 2),
+            "current_spot": round(default_spot, 2),
             "ledger_metrics": metrics,
         }
 
-    def update_mark_to_market(self, current_spot: float, bar_high: Optional[float] = None, bar_low: Optional[float] = None) -> Dict[str, Any]:
+    def update_trade_action(
+        self,
+        trade_id: str,
+        action: str,
+        exit_price: Optional[float] = None,
+        new_stop: Optional[float] = None,
+        new_target: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Manually resolve, update stops/targets, or delete a specific ledger trade.
+        Actions: CLOSE_MARKET, CLOSE_TARGET, CLOSE_STOP, MODIFY, DELETE.
+        """
+        act = str(action or "").upper()
+        now_ny = datetime.now(NY_TZ)
+        with self._lock:
+            target_idx = next(
+                (idx for idx, r in enumerate(self.trade_ledger) if r.get("trade_id") == trade_id),
+                None,
+            )
+            if target_idx is None:
+                return {"updated": False, "reason": f"Trade '{trade_id}' not found."}
+
+            rec = self.trade_ledger[target_idx]
+            if act == "DELETE":
+                removed = self.trade_ledger.pop(target_idx)
+                self._persist_ledger_locked()
+                return {"updated": True, "action": "DELETE", "trade": removed, "ledger": self._compute_metrics_locked()}
+
+            entry = float(rec["entry_price"])
+            risk_pts = max(abs(entry - float(rec["stop"])), 1e-6)
+            risk_usd = float(rec.get("risk_budget_usd", self.risk_budget))
+
+            if act == "MODIFY":
+                if new_stop is not None and math.isfinite(float(new_stop)):
+                    rec["current_stop"] = round(float(new_stop), 2)
+                    rec["stop"] = round(float(new_stop), 2)
+                if new_target is not None and math.isfinite(float(new_target)):
+                    rec["target"] = round(float(new_target), 2)
+                self._persist_ledger_locked()
+                return {"updated": True, "action": "MODIFY", "trade": dict(rec), "ledger": self._compute_metrics_locked()}
+
+            if act in ("CLOSE_MARKET", "CLOSE_TARGET", "CLOSE_STOP"):
+                if act == "CLOSE_TARGET":
+                    px = float(rec["target"])
+                    outcome = "TARGET_1_HIT"
+                elif act == "CLOSE_STOP":
+                    px = float(rec["current_stop"])
+                    outcome = "STOP_HIT"
+                else:
+                    px = float(exit_price if exit_price is not None else entry)
+                    outcome = "MANUAL_EXIT"
+
+                diff = (px - entry) if rec["direction"] == "LONG" else (entry - px)
+                r_mult = round(diff / risk_pts, 2)
+                rec["exit_price"] = round(px, 2)
+                rec["return_r"] = r_mult
+                rec["pnl_usd"] = round(r_mult * risk_usd, 2)
+                rec["outcome"] = outcome
+                rec["resolved_at"] = now_ny.isoformat()
+                self._persist_ledger_locked()
+                return {"updated": True, "action": act, "trade": dict(rec), "ledger": self._compute_metrics_locked()}
+
+            return {"updated": False, "reason": f"Unsupported action '{action}'."}
+
+    def update_mark_to_market(
+        self,
+        current_spot: float,
+        bar_high: Optional[float] = None,
+        bar_low: Optional[float] = None,
+        market_bars: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> Dict[str, Any]:
         """Wrapper updating open forward trades and returning honest account equity."""
-        eval_res = self.evaluate_against_bar(current_spot, bar_high=bar_high, bar_low=bar_low)
+        eval_res = self.evaluate_against_bar(
+            current_spot,
+            bar_high=bar_high,
+            bar_low=bar_low,
+            market_bars=market_bars,
+        )
         metrics = eval_res["ledger_metrics"]
         active = eval_res["active_trade"]
         unrealized = float(active["pnl_usd"]) if active else 0.0

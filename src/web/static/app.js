@@ -1,11 +1,18 @@
 (() => {
   "use strict";
 
+  const SESSION_TEL_KEY = "spx500_tel_cache_v2";
+  const SESSION_BT_KEY = "spx500_bt_cache_v2";
+
   const state = {
-    instrument: "spx",
-    theme: "dark",
+    instrument: localStorage.getItem("spx500_inst") === "spy" ? "spy" : "spx",
+    theme: localStorage.getItem("spx500_theme") === "light" ? "light" : "dark",
+    autoRefreshMs: 0,
+    autoTimer: null,
     telemetry: null,
     backtest: null,
+    lastAgentFingerprint: "",
+    lastBacktestFingerprint: "",
     charts: {
       tvChart: null,
       candleSeries: null,
@@ -54,8 +61,44 @@
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
+  function chartColors() {
+    return {
+      text: cssVar("--text-secondary"),
+      grid: cssVar("--border-color"),
+      bull: cssVar("--bull"),
+      bear: cssVar("--bear"),
+      accent: cssVar("--accent-primary"),
+      warn: cssVar("--warn"),
+      neutral: cssVar("--neutral"),
+      bg: cssVar("--bg-surface-solid"),
+    };
+  }
+
+  function showToast(message, tone = "info") {
+    const stack = el("toastStack");
+    if (!stack) return;
+    const item = document.createElement("div");
+    item.className = `toast ${tone}`;
+    item.textContent = message;
+    stack.appendChild(item);
+    window.setTimeout(() => {
+      item.style.opacity = "0";
+      item.style.transform = "translate3d(0, 6px, 0)";
+      item.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+      window.setTimeout(() => item.remove(), 220);
+    }, 3200);
+  }
+
+  function flashElement(node) {
+    if (!node) return;
+    node.classList.remove("flash-tick");
+    void node.offsetWidth;
+    node.classList.add("flash-tick");
+  }
+
   function setErrorBanner(msg) {
     const banner = el("globalErrorBanner");
+    if (!banner) return;
     if (!msg) {
       banner.textContent = "";
       banner.classList.remove("visible");
@@ -85,20 +128,25 @@
 
   function votePillClass(vote) {
     const upper = String(vote || "").toUpperCase();
-    if (upper.includes("BULL") || upper.includes("LONG") || upper.includes("APPROV") || upper.includes("CLEAR")) {
+    if (upper.includes("BULL") || upper.includes("LONG") || upper.includes("APPROV") || upper.includes("CLEAR") || upper.includes("TARGET")) {
       return "pill pill-bull";
     }
-    if (upper.includes("BEAR") || upper.includes("SHORT") || upper.includes("VETO") || upper.includes("HALT") || upper.includes("REJECT")) {
+    if (upper.includes("BEAR") || upper.includes("SHORT") || upper.includes("VETO") || upper.includes("HALT") || upper.includes("REJECT") || upper.includes("STOP")) {
       return "pill pill-bear";
     }
-    if (upper.includes("CAUTION") || upper.includes("WARN") || upper.includes("MIXED")) {
+    if (upper.includes("CAUTION") || upper.includes("WARN") || upper.includes("MIXED") || upper.includes("MANUAL")) {
       return "pill pill-warn";
     }
     return "pill pill-neutral";
   }
 
-  // ---- Tab & Theme Controls ----
+  // ---- Controls & Cursor Spotlight ----
   function initControls() {
+    document.documentElement.setAttribute("data-theme", state.theme);
+    el("btnThemeToggle").textContent = state.theme === "dark" ? "Light Theme" : "Dark Theme";
+    el("btnInstrumentSpx").classList.toggle("active", state.instrument === "spx");
+    el("btnInstrumentSpy").classList.toggle("active", state.instrument === "spy");
+
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const target = btn.getAttribute("data-tab");
@@ -119,52 +167,143 @@
 
     el("btnThemeToggle").addEventListener("click", () => {
       state.theme = state.theme === "dark" ? "light" : "dark";
+      try { localStorage.setItem("spx500_theme", state.theme); } catch (_) {}
       document.documentElement.setAttribute("data-theme", state.theme);
       el("btnThemeToggle").textContent = state.theme === "dark" ? "Light Theme" : "Dark Theme";
+      state.lastBacktestFingerprint = "";
       renderAll();
     });
 
-    el("btnRefreshAll").addEventListener("click", loadAllData);
+    el("btnRefreshAll").addEventListener("click", () => loadAllData(true));
+    el("btnAutoRefresh").addEventListener("click", cycleAutoRefresh);
+
     el("btnResimulate").addEventListener("click", runBootstrapSimulation);
-    el("btnRecordSignal").addEventListener("click", recordCurrentSignal);
-    el("btnLedgerRecord").addEventListener("click", recordCurrentSignal);
+    el("btnRecordSignal").addEventListener("click", () => recordCurrentSignal(false));
+    el("btnRecordBias").addEventListener("click", () => recordCurrentSignal(true));
+    el("btnLedgerRecord").addEventListener("click", () => recordCurrentSignal(true));
+    el("btnLedgerEvaluate").addEventListener("click", evaluateOpenLedger);
     el("btnLedgerClear").addEventListener("click", clearForwardLedger);
+
+    const form = el("manualTradeForm");
+    if (form) {
+      form.addEventListener("submit", submitManualTrade);
+    }
+
+    // Delegated handler for per-row ledger update buttons (TP1 / Stop / Market / Delete)
+    const ledgerWrap = el("ledgerTableContainer");
+    if (ledgerWrap) {
+      ledgerWrap.addEventListener("click", (evt) => {
+        const btn = evt.target.closest("button[data-ledger-action]");
+        if (!btn) return;
+        const tradeId = btn.getAttribute("data-trade-id");
+        const action = btn.getAttribute("data-ledger-action");
+        const inst = btn.getAttribute("data-inst") || state.instrument.toUpperCase();
+        updateLedgerTrade(tradeId, action, inst);
+      });
+    }
+
+    // 2026 Bento cursor spotlight (rAF-throttled, zero layout thrash)
+    let rafPending = false;
+    document.addEventListener("pointermove", (e) => {
+      if (rafPending) return;
+      const card = e.target.closest && e.target.closest(".card");
+      if (!card) return;
+      rafPending = true;
+      window.requestAnimationFrame(() => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty("--mx", `${e.clientX - rect.left}px`);
+        card.style.setProperty("--my", `${e.clientY - rect.top}px`);
+        rafPending = false;
+      });
+    }, { passive: true });
+  }
+
+  function cycleAutoRefresh() {
+    const seq = [0, 2000, 5000];
+    const idx = seq.indexOf(state.autoRefreshMs);
+    state.autoRefreshMs = seq[(idx + 1) % seq.length];
+    if (state.autoTimer) {
+      window.clearInterval(state.autoTimer);
+      state.autoTimer = null;
+    }
+    if (state.autoRefreshMs > 0) {
+      el("btnAutoRefresh").textContent = `Auto: ${state.autoRefreshMs / 1000}s`;
+      state.autoTimer = window.setInterval(() => loadAllData(false), state.autoRefreshMs);
+      showToast(`Live polling enabled (${state.autoRefreshMs / 1000}s interval)`, "success");
+    } else {
+      el("btnAutoRefresh").textContent = "Auto: Off";
+    }
   }
 
   function switchInstrument(inst) {
     state.instrument = inst;
+    try { localStorage.setItem("spx500_inst", inst); } catch (_) {}
     el("btnInstrumentSpx").classList.toggle("active", inst === "spx");
     el("btnInstrumentSpy").classList.toggle("active", inst === "spy");
+    const mfInst = el("mfInst");
+    if (mfInst) mfInst.value = inst.toUpperCase();
     renderTelemetry();
   }
 
-  // ---- Data Fetching ----
+  // ---- Fast Networking & Instant Session Cache ----
   async function fetchJson(url, options = {}) {
-    const resp = await fetch(url, options);
+    const resp = await fetch(url, { cache: "no-store", ...options });
     if (!resp.ok) {
       const txt = await resp.text();
-      throw new Error(`HTTP ${resp.status} from ${url}: ${txt.slice(0, 180)}`);
+      throw new Error(`HTTP ${resp.status} from ${url}: ${txt.slice(0, 160)}`);
     }
     return resp.json();
   }
 
-  async function loadAllData() {
-    setErrorBanner("");
+  function hydrateFromSessionCache() {
     try {
+      const tRaw = sessionStorage.getItem(SESSION_TEL_KEY);
+      const bRaw = sessionStorage.getItem(SESSION_BT_KEY);
+      if (tRaw && bRaw) {
+        const t0 = performance.now();
+        state.telemetry = JSON.parse(tRaw);
+        state.backtest = JSON.parse(bRaw);
+        renderAll();
+        const dt = performance.now() - t0;
+        const pill = el("latencyPill");
+        if (pill) pill.textContent = `${dt.toFixed(1)} ms (cache)`;
+      }
+    } catch (_) {}
+  }
+
+  async function loadAllData(forceBgRefresh = false) {
+    setErrorBanner("");
+    const t0 = performance.now();
+    try {
+      const telUrl = forceBgRefresh ? "/api/telemetry?refresh=1" : "/api/telemetry";
       const [telemetry, backtest] = await Promise.all([
-        fetchJson("/api/telemetry"),
+        fetchJson(telUrl),
         fetchJson("/api/backtest"),
       ]);
       state.telemetry = telemetry;
       state.backtest = backtest;
+
+      try {
+        sessionStorage.setItem(SESSION_TEL_KEY, JSON.stringify(telemetry));
+        sessionStorage.setItem(SESSION_BT_KEY, JSON.stringify(backtest));
+      } catch (_) {}
+
       renderAll();
+      const elapsed = performance.now() - t0;
+      const pill = el("latencyPill");
+      if (pill) {
+        pill.textContent = `${elapsed.toFixed(1)} ms`;
+        flashElement(pill);
+      }
     } catch (err) {
       setErrorBanner(`Telemetry load failed: ${err.message}`);
     }
   }
 
+  // ---- Interactive Backend Actions ----
   async function runBootstrapSimulation() {
     if (!state.telemetry) return;
+    const t0 = performance.now();
     const msgBox = el("recordStatusMsg");
     msgBox.textContent = "Running empirical OHLC return bootstrap...";
     try {
@@ -173,8 +312,9 @@
       const plan = instData.trade_plan || {};
       const payload = {
         instrument: inst.toUpperCase(),
-        direction: plan.signal === "SHORT" ? "SHORT" : "LONG",
+        direction: plan.raw_direction === "SHORT" || plan.signal === "SHORT" ? "SHORT" : "LONG",
         paths: 1500,
+        seed: Math.floor(Date.now() % 100000),
       };
       const sim = await fetchJson("/api/simulate", {
         method: "POST",
@@ -185,46 +325,151 @@
       if (sim.fan_series) {
         state.telemetry[inst].fan_series = sim.fan_series;
       }
+      // Update Step 7 agent card in state cleanly so UI stays consistent
+      const step7 = (state.telemetry.agent_reasoning || []).find((a) => Number(a.step) === 7);
+      if (step7) {
+        step7.vote = sim.verdict || step7.vote;
+        step7.output_summary = `WinRate=${fmtNum(sim.win_rate, 1)}%, Exp=${fmtSigned(sim.expected_r, 3, "R")} (${sim.paths_simulated} ${sim.direction} paths)`;
+        state.lastAgentFingerprint = "";
+        renderAgentPipeline(state.telemetry.agent_reasoning || []);
+      }
       renderFanChart();
-      msgBox.textContent = `Re-simulated ${sim.paths_simulated} bootstrap paths (${sim.bootstrap_mode}): Win=${fmtNum(sim.win_rate, 1)}%, Exp=${fmtSigned(sim.expected_r, 3, "R")}`;
+      const dt = (performance.now() - t0).toFixed(1);
+      const summary = `Bootstrap (${sim.direction}, ${sim.paths_simulated} paths): Win=${fmtNum(sim.win_rate, 1)}%, Exp=${fmtSigned(sim.expected_r, 3, "R")} (${dt} ms)`;
+      msgBox.textContent = summary;
+      showToast(summary, "success");
     } catch (err) {
       msgBox.textContent = `Simulation error: ${err.message}`;
+      showToast(`Simulation error: ${err.message}`, "error");
     }
   }
 
-  async function recordCurrentSignal() {
+  async function recordCurrentSignal(allowBias = false) {
+    const t0 = performance.now();
     const msgBox = el("recordStatusMsg");
+    const ledgerMsg = el("ledgerStatusMsg");
     try {
       const res = await fetchJson("/api/ledger/record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrument: state.instrument.toUpperCase() }),
+        body: JSON.stringify({ instrument: state.instrument.toUpperCase(), allow_bias: allowBias }),
       });
       if (res.ledger && state.telemetry) {
         state.telemetry.ledger = res.ledger;
         renderLedger();
       }
+      const dt = (performance.now() - t0).toFixed(1);
       if (res.recorded) {
-        msgBox.textContent = `Recorded signal ${res.trade.trade_id} (${res.trade.direction} ${res.trade.instrument} @ ${fmtNum(res.trade.entry_price)})`;
+        const text = `Recorded ${res.trade.trade_id}: ${res.trade.direction} ${res.trade.instrument} @ ${fmtNum(res.trade.entry_price)} (${dt} ms)`;
+        if (msgBox) msgBox.textContent = text;
+        if (ledgerMsg) ledgerMsg.textContent = text;
+        showToast(text, "success");
       } else {
-        msgBox.textContent = res.reason || "Signal was not recorded (NO_TRADE mandate).";
+        const warnText = `${res.reason || "Blocked by Risk Guardian (NO_TRADE)."} Click "Log Bias Override" or use the Forward Ledger form to record manually.`;
+        if (msgBox) msgBox.textContent = warnText;
+        if (ledgerMsg) ledgerMsg.textContent = warnText;
+        showToast(warnText, "warn");
       }
     } catch (err) {
-      msgBox.textContent = `Ledger error: ${err.message}`;
+      showToast(`Ledger error: ${err.message}`, "error");
+    }
+  }
+
+  async function submitManualTrade(evt) {
+    evt.preventDefault();
+    const t0 = performance.now();
+    const inst = (el("mfInst").value || state.instrument.toUpperCase()).toUpperCase();
+    const direction = el("mfDir").value || "LONG";
+    const entryVal = el("mfEntry").value ? Number(el("mfEntry").value) : null;
+    const stopVal = el("mfStop").value ? Number(el("mfStop").value) : null;
+    const targetVal = el("mfTarget").value ? Number(el("mfTarget").value) : null;
+
+    try {
+      const res = await fetchJson("/api/ledger/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instrument: inst,
+          direction,
+          entry_price: entryVal,
+          stop: stopVal,
+          target: targetVal,
+        }),
+      });
+      if (res.ledger && state.telemetry) {
+        state.telemetry.ledger = res.ledger;
+        renderLedger();
+      }
+      const dt = (performance.now() - t0).toFixed(1);
+      if (res.recorded) {
+        const text = `Logged ${res.trade.trade_id} (${res.trade.direction} ${res.trade.instrument} @ ${fmtNum(res.trade.entry_price)}) in ${dt} ms`;
+        el("ledgerStatusMsg").textContent = text;
+        el("manualTradeForm").reset();
+        el("mfInst").value = state.instrument.toUpperCase();
+        showToast(text, "success");
+      } else {
+        showToast(res.reason || "Could not log paper trade.", "warn");
+      }
+    } catch (err) {
+      showToast(`Manual trade failed: ${err.message}`, "error");
+    }
+  }
+
+  async function updateLedgerTrade(tradeId, action, instrument) {
+    const t0 = performance.now();
+    try {
+      const res = await fetchJson("/api/ledger/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trade_id: tradeId, action, instrument }),
+      });
+      if (res.ledger && state.telemetry) {
+        state.telemetry.ledger = res.ledger;
+        renderLedger();
+      }
+      const dt = (performance.now() - t0).toFixed(1);
+      const text = res.updated
+        ? `Ledger updated (${action} ${tradeId}) in ${dt} ms`
+        : res.reason || "Update failed.";
+      el("ledgerStatusMsg").textContent = text;
+      showToast(text, res.updated ? "success" : "warn");
+    } catch (err) {
+      showToast(`Update failed: ${err.message}`, "error");
+    }
+  }
+
+  async function evaluateOpenLedger() {
+    const t0 = performance.now();
+    try {
+      const res = await fetchJson("/api/ledger/evaluate", { method: "POST" });
+      if (res.ledger && state.telemetry) {
+        state.telemetry.ledger = res.ledger;
+        renderLedger();
+      }
+      const dt = (performance.now() - t0).toFixed(1);
+      const msg = `Evaluated open trades vs latest OHLC bars (${dt} ms). Open=${res.ledger.open_signals}, Resolved=${res.ledger.resolved_signals}`;
+      el("ledgerStatusMsg").textContent = msg;
+      showToast(msg, "success");
+    } catch (err) {
+      showToast(`Evaluate error: ${err.message}`, "error");
     }
   }
 
   async function clearForwardLedger() {
-    const msgBox = el("recordStatusMsg");
+    const t0 = performance.now();
     try {
       const res = await fetchJson("/api/ledger/clear", { method: "POST" });
       if (res.ledger && state.telemetry) {
         state.telemetry.ledger = res.ledger;
         renderLedger();
       }
-      msgBox.textContent = "Forward paper ledger cleared.";
+      const dt = (performance.now() - t0).toFixed(1);
+      const text = `Forward paper ledger cleared in ${dt} ms.`;
+      if (el("recordStatusMsg")) el("recordStatusMsg").textContent = text;
+      if (el("ledgerStatusMsg")) el("ledgerStatusMsg").textContent = text;
+      showToast(text, "info");
     } catch (err) {
-      msgBox.textContent = `Clear error: ${err.message}`;
+      showToast(`Clear error: ${err.message}`, "error");
     }
   }
 
@@ -247,9 +492,13 @@
       `${t.provenance_detail || ""} | Fetched UTC: ${t.fetched_at_utc || "--"}`
     );
 
-    // Macro strip
     const chgColor = instData.change_pts >= 0 ? "var(--bull)" : "var(--bear)";
-    el("stripSpot").textContent = `${instKey.toUpperCase()} ${fmtNum(instData.spot)}`;
+    const spotEl = el("stripSpot");
+    const nextSpot = `${instKey.toUpperCase()} ${fmtNum(instData.spot)}`;
+    if (spotEl.textContent !== nextSpot) {
+      spotEl.textContent = nextSpot;
+      flashElement(spotEl);
+    }
     el("stripChange").textContent = `${fmtSigned(instData.change_pts)} (${fmtSigned(instData.change_pct, 2, "%")})`;
     el("stripChange").style.color = chgColor;
 
@@ -300,116 +549,97 @@
 
     el("tradePlanReason").textContent =
       `${plan.reason || ""} | ATR(14)=${fmtNum(plan.atr_14, 2)} pts | Conformal q90=${fmtNum(conf.calibrated_q90_pct, 3)}% | Cutoff=${plan.mandatory_exit || "15:45 ET"}`;
-
     el("chartTitle").textContent = `${instKey.toUpperCase()} 5-Minute Session & Execution Levels`;
   }
 
-  // ---- TradingView Lightweight Charts ----
+  // ---- Zero-Thrash TradingView Lightweight Charts ----
   function renderTradingViewChart(instKey, instData) {
     const container = el("tvChartContainer");
     if (!container || typeof window.LightweightCharts === "undefined") return;
 
-    const bg = cssVar("--bg-surface");
-    const text = cssVar("--text-secondary");
-    const grid = cssVar("--border-color");
-    const bull = cssVar("--bull");
-    const bear = cssVar("--bear");
-    const accent = cssVar("--accent-primary");
+    const c = chartColors();
+    if (!state.charts.tvChart) {
+      const chart = window.LightweightCharts.createChart(container, {
+        width: container.clientWidth,
+        height: container.clientHeight,
+        layout: { background: { color: c.bg }, textColor: c.text },
+        grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+        crosshair: { mode: 0 },
+        timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false },
+        rightPriceScale: { borderColor: c.grid },
+      });
 
-    if (state.charts.tvChart) {
-      state.charts.tvChart.remove();
-      state.charts.tvChart = null;
-      state.charts.priceLines = [];
+      state.charts.candleSeries = chart.addCandlestickSeries({
+        upColor: c.bull,
+        downColor: c.bear,
+        borderVisible: false,
+        wickUpColor: c.bull,
+        wickDownColor: c.bear,
+      });
+
+      state.charts.vwapSeries = chart.addLineSeries({
+        color: c.accent,
+        lineWidth: 2,
+        title: "VWAP",
+      });
+
+      const volSeries = chart.addHistogramSeries({
+        priceFormat: { type: "volume" },
+        priceScaleId: "",
+        color: "rgba(100, 116, 139, 0.35)",
+      });
+      volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      state.charts.volumeSeries = volSeries;
+      state.charts.tvChart = chart;
+    } else {
+      state.charts.tvChart.applyOptions({
+        layout: { background: { color: c.bg }, textColor: c.text },
+        grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+        timeScale: { borderColor: c.grid },
+        rightPriceScale: { borderColor: c.grid },
+      });
     }
-
-    const chart = window.LightweightCharts.createChart(container, {
-      width: container.clientWidth,
-      height: container.clientHeight,
-      layout: {
-        background: { color: bg },
-        textColor: text,
-      },
-      grid: {
-        vertLines: { color: grid },
-        horzLines: { color: grid },
-      },
-      crosshair: { mode: 0 },
-      timeScale: {
-        borderColor: grid,
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      rightPriceScale: { borderColor: grid },
-    });
-
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: bull,
-      downColor: bear,
-      borderVisible: false,
-      wickUpColor: bull,
-      wickDownColor: bear,
-    });
-
-    const vwapSeries = chart.addLineSeries({
-      color: accent,
-      lineWidth: 2,
-      title: "VWAP",
-    });
-
-    const volumeSeries = chart.addHistogramSeries({
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-      color: "rgba(100, 116, 139, 0.35)",
-    });
-    volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.82, bottom: 0 },
-    });
 
     const rawCandles = Array.isArray(instData.candles) ? instData.candles : [];
-    const seenTimes = new Set();
-    const cleanCandles = [];
-    for (const c of rawCandles) {
-      const ts = Number(c.time);
-      if (!Number.isFinite(ts) || seenTimes.has(ts)) continue;
-      seenTimes.add(ts);
-      cleanCandles.push(c);
+    const seen = new Set();
+    const clean = [];
+    for (const bar of rawCandles) {
+      const ts = Number(bar.time);
+      if (!Number.isFinite(ts) || seen.has(ts)) continue;
+      seen.add(ts);
+      clean.push(bar);
     }
-    cleanCandles.sort((a, b) => a.time - b.time);
+    clean.sort((a, b) => a.time - b.time);
 
-    candleSeries.setData(
-      cleanCandles.map((c) => ({
-        time: c.time,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
+    state.charts.candleSeries.setData(
+      clean.map((x) => ({ time: x.time, open: x.open, high: x.high, low: x.low, close: x.close }))
+    );
+    state.charts.vwapSeries.setData(
+      clean.filter((x) => Number.isFinite(Number(x.vwap))).map((x) => ({ time: x.time, value: Number(x.vwap) }))
+    );
+    state.charts.volumeSeries.setData(
+      clean.map((x) => ({
+        time: x.time,
+        value: Number(x.volume || 0),
+        color: x.close >= x.open ? "rgba(16, 185, 129, 0.28)" : "rgba(239, 68, 68, 0.28)",
       }))
     );
 
-    vwapSeries.setData(
-      cleanCandles
-        .filter((c) => Number.isFinite(Number(c.vwap)))
-        .map((c) => ({ time: c.time, value: Number(c.vwap) }))
-    );
-
-    volumeSeries.setData(
-      cleanCandles.map((c) => ({
-        time: c.time,
-        value: Number(c.volume || 0),
-        color: c.close >= c.open ? "rgba(16, 185, 129, 0.28)" : "rgba(239, 68, 68, 0.28)",
-      }))
-    );
+    for (const pl of state.charts.priceLines) {
+      try { state.charts.candleSeries.removePriceLine(pl); } catch (_) {}
+    }
+    state.charts.priceLines = [];
 
     const plan = instData.trade_plan || {};
     const levels = [
-      { price: plan.entry, color: accent, title: `ENTRY ${instKey.toUpperCase()}`, style: 0 },
-      { price: plan.stop_loss, color: bear, title: "STOP LOSS", style: 2 },
-      { price: plan.tp1, color: bull, title: "TP1", style: 2 },
-      { price: plan.tp2, color: bull, title: "TP2", style: 1 },
+      { price: plan.entry, color: c.accent, title: `ENTRY ${instKey.toUpperCase()}`, style: 0 },
+      { price: plan.stop_loss, color: c.bear, title: "STOP LOSS", style: 2 },
+      { price: plan.tp1, color: c.bull, title: "TP1", style: 2 },
+      { price: plan.tp2, color: c.bull, title: "TP2", style: 1 },
     ];
     for (const lv of levels) {
       if (Number.isFinite(Number(lv.price))) {
-        candleSeries.createPriceLine({
+        const line = state.charts.candleSeries.createPriceLine({
           price: Number(lv.price),
           color: lv.color,
           lineWidth: 1,
@@ -417,40 +647,28 @@
           axisLabelVisible: true,
           title: lv.title,
         });
+        state.charts.priceLines.push(line);
       }
     }
-
-    chart.timeScale().fitContent();
-    state.charts.tvChart = chart;
-    state.charts.candleSeries = candleSeries;
-    state.charts.vwapSeries = vwapSeries;
-    state.charts.volumeSeries = volumeSeries;
+    state.charts.tvChart.timeScale().fitContent();
   }
 
-  function destroyChart(key) {
-    if (state.charts[key]) {
-      state.charts[key].destroy();
-      state.charts[key] = null;
+  function upsertLineOrBarChart(key, canvasId, config) {
+    const canvas = el(canvasId);
+    if (!canvas || typeof window.Chart === "undefined") return;
+    const existing = state.charts[key];
+    if (existing) {
+      existing.data = config.data;
+      existing.options = config.options;
+      existing.update("none");
+      return;
     }
+    state.charts[key] = new window.Chart(canvas, config);
   }
 
-  function chartColors() {
-    return {
-      text: cssVar("--text-secondary"),
-      grid: cssVar("--border-color"),
-      bull: cssVar("--bull"),
-      bear: cssVar("--bear"),
-      accent: cssVar("--accent-primary"),
-      warn: cssVar("--warn"),
-      neutral: cssVar("--neutral"),
-    };
-  }
-
-  // ---- TimeMachine Bootstrap Fan ----
+  // ---- Chart.js Charts ----
   function renderFanChart() {
-    const canvas = el("fanChartCanvas");
-    if (!canvas || typeof window.Chart === "undefined" || !state.telemetry) return;
-
+    if (!state.telemetry) return;
     const instKey = state.instrument;
     const instData = state.telemetry[instKey] || {};
     const fan = instData.fan_series || {};
@@ -459,108 +677,53 @@
     el("tmSummarySubtitle").textContent =
       `${tm.bootstrap_mode || "EMPIRICAL_BAR_BOOTSTRAP"} · Paths=${tm.paths_simulated || "--"} · Win=${fmtNum(tm.win_rate, 1)}% · Exp=${fmtSigned(tm.expected_r, 3, "R")} (${tm.verdict || "--"})`;
 
-    destroyChart("fan");
     const c = chartColors();
     const steps = (fan.steps || []).map((s) => `+${s * 5}m`);
 
-    state.charts.fan = new window.Chart(canvas, {
+    upsertLineOrBarChart("fan", "fanChartCanvas", {
       type: "line",
       data: {
         labels: steps,
         datasets: [
-          {
-            label: "P95",
-            data: fan.p95 || [],
-            borderColor: "rgba(16, 185, 129, 0.5)",
-            borderDash: [4, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: false,
-          },
-          {
-            label: "P75",
-            data: fan.p75 || [],
-            borderColor: c.bull,
-            backgroundColor: "rgba(16, 185, 129, 0.14)",
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: "+1",
-          },
-          {
-            label: "P50 (Median)",
-            data: fan.p50 || [],
-            borderColor: c.accent,
-            borderWidth: 2.5,
-            pointRadius: 2,
-            fill: false,
-          },
-          {
-            label: "P25",
-            data: fan.p25 || [],
-            borderColor: c.warn,
-            backgroundColor: "rgba(239, 68, 68, 0.10)",
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: "-1",
-          },
-          {
-            label: "P5",
-            data: fan.p5 || [],
-            borderColor: "rgba(239, 68, 68, 0.65)",
-            borderDash: [4, 4],
-            borderWidth: 1.5,
-            pointRadius: 0,
-            fill: false,
-          },
+          { label: "P95", data: fan.p95 || [], borderColor: "rgba(16, 185, 129, 0.55)", borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+          { label: "P75", data: fan.p75 || [], borderColor: c.bull, backgroundColor: "rgba(16, 185, 129, 0.14)", borderWidth: 1.5, pointRadius: 0, fill: "+1" },
+          { label: "P50 (Median)", data: fan.p50 || [], borderColor: c.accent, borderWidth: 2.5, pointRadius: 2, fill: false },
+          { label: "P25", data: fan.p25 || [], borderColor: c.warn, backgroundColor: "rgba(239, 68, 68, 0.10)", borderWidth: 1.5, pointRadius: 0, fill: "-1" },
+          { label: "P5", data: fan.p5 || [], borderColor: "rgba(239, 68, 68, 0.65)", borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: c.text, boxWidth: 12, font: { size: 11 } } },
-        },
-        scales: {
-          x: { ticks: { color: c.text }, grid: { color: c.grid } },
-          y: { ticks: { color: c.text }, grid: { color: c.grid } },
-        },
+        animation: { duration: 180 },
+        plugins: { legend: { labels: { color: c.text, boxWidth: 12, font: { size: 11 } } } },
+        scales: { x: { ticks: { color: c.text }, grid: { color: c.grid } }, y: { ticks: { color: c.text }, grid: { color: c.grid } } },
       },
     });
   }
 
-  // ---- TreeSHAP Contributions ----
   function renderShapChart() {
-    const canvas = el("shapChartCanvas");
-    if (!canvas || typeof window.Chart === "undefined" || !state.telemetry) return;
-
+    if (!state.telemetry) return;
     const contribs = (state.telemetry.feature_contributions || []).slice(0, 8);
-    destroyChart("shap");
     const c = chartColors();
-
-    state.charts.shap = new window.Chart(canvas, {
+    upsertLineOrBarChart("shap", "shapChartCanvas", {
       type: "bar",
       data: {
         labels: contribs.map((x) => x.feature),
-        datasets: [
-          {
-            label: "TreeSHAP Log-Odds Contribution (UP vs DOWN)",
-            data: contribs.map((x) => Number(x.shap_contribution || 0)),
-            backgroundColor: contribs.map((x) => (Number(x.shap_contribution) >= 0 ? c.bull : c.bear)),
-            borderRadius: 4,
-          },
-        ],
+        datasets: [{
+          label: "TreeSHAP Log-Odds Contribution (UP vs DOWN)",
+          data: contribs.map((x) => Number(x.shap_contribution || 0)),
+          backgroundColor: contribs.map((x) => (Number(x.shap_contribution) >= 0 ? c.bull : c.bear)),
+          borderRadius: 5,
+        }],
       },
       options: {
         indexAxis: "y",
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: c.text, font: { size: 11 } } },
-        },
-        scales: {
-          x: { ticks: { color: c.text }, grid: { color: c.grid } },
-          y: { ticks: { color: c.text, font: { size: 11 } }, grid: { color: c.grid } },
-        },
+        animation: { duration: 180 },
+        plugins: { legend: { labels: { color: c.text, font: { size: 11 } } } },
+        scales: { x: { ticks: { color: c.text }, grid: { color: c.grid } }, y: { ticks: { color: c.text, font: { size: 11 } }, grid: { color: c.grid } } },
       },
     });
   }
@@ -570,13 +733,17 @@
     const grid = el("agentFlowGrid");
     if (!grid) return;
 
+    const fp = JSON.stringify(agents);
+    if (fp === state.lastAgentFingerprint) return;
+    state.lastAgentFingerprint = fp;
+
     if (!agents.length) {
       grid.innerHTML = `<div class="empty-state">No agent reasoning trace returned from telemetry.</div>`;
       return;
     }
 
     grid.innerHTML = agents
-      .map((ag) => {
+      .map((ag, idx) => {
         const inputsObj = ag.inputs || {};
         const inputRows = Object.entries(inputsObj)
           .map(
@@ -589,7 +756,7 @@
           .join("");
 
         return `
-        <article class="agent-card">
+        <article class="agent-card" style="--stagger: ${idx};">
           <div class="agent-card-top">
             <div>
               <div class="agent-step">STEP ${escHtml(ag.step)} · ${escHtml(ag.weight_pct ?? 0)}% WEIGHT</div>
@@ -633,6 +800,10 @@
     const bt = state.backtest;
     if (!bt || !bt.available) return;
 
+    const fp = `${state.theme}|${bt.generated_at_utc || ""}|${bt.strategy?.bars_evaluated || 0}`;
+    if (fp === state.lastBacktestFingerprint) return;
+    state.lastBacktestFingerprint = fp;
+
     const strat = bt.strategy || {};
     const val = bt.validation_summary || {};
     const cv = val.purged_cv || {};
@@ -670,122 +841,77 @@
   }
 
   function renderEquityAndDrawdown(strat) {
-    if (typeof window.Chart === "undefined") return;
     const c = chartColors();
     const labels = (strat.labels || []).map((s) => String(s).slice(5, 16));
 
-    destroyChart("equity");
-    const eqCanvas = el("equityChartCanvas");
-    if (eqCanvas) {
-      state.charts.equity = new window.Chart(eqCanvas, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Strategy Equity ($)",
-              data: strat.equity_curve || [],
-              borderColor: c.bull,
-              borderWidth: 2,
-              pointRadius: 0,
-            },
-            {
-              label: "SPY Buy & Hold ($)",
-              data: strat.benchmark_curve || [],
-              borderColor: c.text,
-              borderDash: [5, 4],
-              borderWidth: 1.5,
-              pointRadius: 0,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { labels: { color: c.text } } },
-          scales: {
-            x: { ticks: { color: c.text, maxTicksLimit: 8 }, grid: { color: c.grid } },
-            y: { ticks: { color: c.text }, grid: { color: c.grid } },
-          },
-        },
-      });
-    }
+    upsertLineOrBarChart("equity", "equityChartCanvas", {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          { label: "Strategy Equity ($)", data: strat.equity_curve || [], borderColor: c.bull, borderWidth: 2, pointRadius: 0 },
+          { label: "SPY Buy & Hold ($)", data: strat.benchmark_curve || [], borderColor: c.text, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { labels: { color: c.text } } },
+        scales: { x: { ticks: { color: c.text, maxTicksLimit: 8 }, grid: { color: c.grid } }, y: { ticks: { color: c.text }, grid: { color: c.grid } } },
+      },
+    });
 
-    destroyChart("drawdown");
-    const ddCanvas = el("drawdownChartCanvas");
-    if (ddCanvas) {
-      state.charts.drawdown = new window.Chart(ddCanvas, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Drawdown (%)",
-              data: strat.drawdown_curve || [],
-              borderColor: c.bear,
-              backgroundColor: "rgba(239, 68, 68, 0.16)",
-              fill: true,
-              borderWidth: 1.5,
-              pointRadius: 0,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { labels: { color: c.text } } },
-          scales: {
-            x: { ticks: { color: c.text, maxTicksLimit: 8 }, grid: { color: c.grid } },
-            y: { ticks: { color: c.text }, grid: { color: c.grid } },
-          },
-        },
-      });
-    }
+    upsertLineOrBarChart("drawdown", "drawdownChartCanvas", {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Drawdown (%)",
+          data: strat.drawdown_curve || [],
+          borderColor: c.bear,
+          backgroundColor: "rgba(239, 68, 68, 0.16)",
+          fill: true,
+          borderWidth: 1.5,
+          pointRadius: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { labels: { color: c.text } } },
+        scales: { x: { ticks: { color: c.text, maxTicksLimit: 8 }, grid: { color: c.grid } }, y: { ticks: { color: c.text }, grid: { color: c.grid } } },
+      },
+    });
   }
 
   function renderCalibrationAndConfusion(ho, cal) {
     el("evBrierSubtitle").textContent =
       `Multiclass Brier Score: ${fmtNum(cal.brier_score, 4)} · ECE: ${fmtNum(cal.ece, 4)} · Accuracy: ${fmtNum((ho.accuracy || 0) * 100, 1)}%`;
 
-    const calCanvas = el("calibrationChartCanvas");
-    if (calCanvas && typeof window.Chart !== "undefined") {
-      destroyChart("calibration");
-      const c = chartColors();
-      const bins = cal.bins || [];
-      state.charts.calibration = new window.Chart(calCanvas, {
-        type: "line",
-        data: {
-          labels: bins.map((b) => fmtNum(b.mean_confidence, 2)),
-          datasets: [
-            {
-              label: "Empirical Accuracy",
-              data: bins.map((b) => b.empirical_accuracy),
-              borderColor: c.accent,
-              backgroundColor: c.accent,
-              borderWidth: 2,
-              pointRadius: 4,
-            },
-            {
-              label: "Perfect Calibration (y=x)",
-              data: bins.map((b) => b.mean_confidence),
-              borderColor: c.text,
-              borderDash: [4, 4],
-              borderWidth: 1.5,
-              pointRadius: 0,
-            },
-          ],
+    const c = chartColors();
+    const bins = cal.bins || [];
+    upsertLineOrBarChart("calibration", "calibrationChartCanvas", {
+      type: "line",
+      data: {
+        labels: bins.map((b) => fmtNum(b.mean_confidence, 2)),
+        datasets: [
+          { label: "Empirical Accuracy", data: bins.map((b) => b.empirical_accuracy), borderColor: c.accent, backgroundColor: c.accent, borderWidth: 2, pointRadius: 4 },
+          { label: "Perfect Calibration (y=x)", data: bins.map((b) => b.mean_confidence), borderColor: c.text, borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0 },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { labels: { color: c.text } } },
+        scales: {
+          x: { title: { display: true, text: "Predicted Confidence", color: c.text }, ticks: { color: c.text }, grid: { color: c.grid } },
+          y: { min: 0, max: 1, title: { display: true, text: "Observed Accuracy", color: c.text }, ticks: { color: c.text }, grid: { color: c.grid } },
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { labels: { color: c.text } } },
-          scales: {
-            x: { title: { display: true, text: "Predicted Confidence", color: c.text }, ticks: { color: c.text }, grid: { color: c.grid } },
-            y: { min: 0, max: 1, title: { display: true, text: "Observed Accuracy", color: c.text }, ticks: { color: c.text }, grid: { color: c.grid } },
-          },
-        },
-      });
-    }
+      },
+    });
 
     const cmWrap = el("confusionMatrixWrap");
     const cm = ho.confusion_matrix || [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
@@ -854,42 +980,27 @@
     el("mkExpiry").textContent = `Nearest Expiry: ${gex.nearest_expiry || "--"}`;
     el("mkPcRatio").textContent = `${fmtNum(gex.pc_ratio_0dte_vol, 2)} Vol · ${fmtNum(gex.pc_ratio_oi, 2)} OI`;
     el("mkVanna").textContent = `Vanna: ${fmtSigned(micro.vanna_imbalance_b, 2, "B")} · ${micro.charm_phase || "--"}`;
-
     el("gexChartTitle").textContent = `${instKey.toUpperCase()} Dealer Gamma Exposure by Strike ($M)`;
 
-    const gexCanvas = el("gexChartCanvas");
-    if (gexCanvas && typeof window.Chart !== "undefined") {
-      destroyChart("gex");
-      const c = chartColors();
-      const strikes = gex.strikes || [];
-      state.charts.gex = new window.Chart(gexCanvas, {
-        type: "bar",
-        data: {
-          labels: strikes.map((s) => String(s.strike)),
-          datasets: [
-            {
-              label: "Call GEX ($M)",
-              data: strikes.map((s) => s.call_gex),
-              backgroundColor: c.bull,
-            },
-            {
-              label: "Put GEX ($M)",
-              data: strikes.map((s) => s.put_gex),
-              backgroundColor: c.bear,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { labels: { color: c.text } } },
-          scales: {
-            x: { ticks: { color: c.text }, grid: { color: c.grid } },
-            y: { ticks: { color: c.text }, grid: { color: c.grid } },
-          },
-        },
-      });
-    }
+    const c = chartColors();
+    const strikes = gex.strikes || [];
+    upsertLineOrBarChart("gex", "gexChartCanvas", {
+      type: "bar",
+      data: {
+        labels: strikes.map((s) => String(s.strike)),
+        datasets: [
+          { label: "Call GEX ($M)", data: strikes.map((s) => s.call_gex), backgroundColor: c.bull },
+          { label: "Put GEX ($M)", data: strikes.map((s) => s.put_gex), backgroundColor: c.bear },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 180 },
+        plugins: { legend: { labels: { color: c.text } } },
+        scales: { x: { ticks: { color: c.text }, grid: { color: c.grid } }, y: { ticks: { color: c.text }, grid: { color: c.grid } } },
+      },
+    });
 
     el("intermarketDetails").innerHTML = `
       <div class="agent-inputs" style="gap: 8px; padding: 12px; font-size: 13px;">
@@ -945,7 +1056,7 @@
     const trades = ledger.recent_trades || [];
     const wrap = el("ledgerTableContainer");
     if (!trades.length) {
-      wrap.innerHTML = `<div class="empty-state">Forward paper ledger is empty. No fabricated history is displayed. Click <strong>Record Current Signal</strong> when an actionable trade plan is generated.</div>`;
+      wrap.innerHTML = `<div class="empty-state">Forward paper ledger is empty. No fabricated history is displayed. Use <strong>Record Signal / Bias</strong> or <strong>+ Log Paper Trade</strong> above to track forward signals in real time.</div>`;
       return;
     }
     wrap.innerHTML = `
@@ -953,17 +1064,18 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Signal ID</th>
+              <th>Trade ID</th>
               <th>Timestamp (ET)</th>
               <th>Inst</th>
               <th>Dir</th>
               <th>Entry</th>
               <th>Stop</th>
               <th>TP1</th>
-              <th>Status</th>
+              <th>Outcome</th>
               <th>Exit</th>
               <th>R</th>
               <th>P&amp;L ($)</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -976,12 +1088,24 @@
                 <td>${escHtml(tr.instrument)}</td>
                 <td><span class="${votePillClass(tr.direction)}">${escHtml(tr.direction)}</span></td>
                 <td class="mono">${fmtNum(tr.entry_price)}</td>
-                <td class="mono">${fmtNum(tr.stop)}</td>
+                <td class="mono">${fmtNum(tr.current_stop ?? tr.stop)}</td>
                 <td class="mono">${fmtNum(tr.target)}</td>
-                <td class="mono">${escHtml(tr.outcome)}</td>
+                <td><span class="${votePillClass(tr.outcome)}">${escHtml(tr.outcome)}</span></td>
                 <td class="mono">${tr.exit_price != null ? fmtNum(tr.exit_price) : "--"}</td>
                 <td class="mono">${fmtSigned(tr.return_r || 0, 2, "R")}</td>
                 <td class="mono">${fmtSigned(tr.pnl_usd || 0, 2)}</td>
+                <td>
+                  <div style="display:flex;gap:4px;">
+                    ${
+                      tr.outcome === "OPEN"
+                        ? `<button type="button" class="btn btn-sm btn-bull" data-ledger-action="CLOSE_TARGET" data-trade-id="${escHtml(tr.trade_id)}" data-inst="${escHtml(tr.instrument)}" title="Settle at TP1">TP1</button>
+                           <button type="button" class="btn btn-sm btn-danger" data-ledger-action="CLOSE_STOP" data-trade-id="${escHtml(tr.trade_id)}" data-inst="${escHtml(tr.instrument)}" title="Settle at Stop">SL</button>
+                           <button type="button" class="btn btn-sm" data-ledger-action="CLOSE_MARKET" data-trade-id="${escHtml(tr.trade_id)}" data-inst="${escHtml(tr.instrument)}" title="Close at current spot">Mkt</button>`
+                        : ""
+                    }
+                    <button type="button" class="btn btn-sm btn-danger" data-ledger-action="DELETE" data-trade-id="${escHtml(tr.trade_id)}" data-inst="${escHtml(tr.instrument)}" title="Delete row">Del</button>
+                  </div>
+                </td>
               </tr>`
               )
               .join("")}
@@ -999,6 +1123,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     initControls();
-    loadAllData();
+    hydrateFromSessionCache();
+    loadAllData(false);
   });
 })();

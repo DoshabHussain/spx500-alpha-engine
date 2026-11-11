@@ -4,11 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SPX500 Alpha Engine — Quantitative Trading Workbench</title>
+  <script>
+    (function(){
+      try {
+        var t = localStorage.getItem("spx500_theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="/static/styles.css" />
-  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
-  <script src="/static/vendor/chart.umd.min.js"></script>
+  <script src="/static/vendor/lightweight-charts.standalone.production.js" defer></script>
+  <script src="/static/vendor/chart.umd.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
+  <div class="aurora-bg" aria-hidden="true">
+    <div class="aurora-orb aurora-orb-1"></div>
+    <div class="aurora-orb aurora-orb-2"></div>
+    <div class="aurora-orb aurora-orb-3"></div>
+  </div>
+
   <div class="app-shell">
     <!-- Top Header -->
     <header class="topbar">
@@ -21,6 +36,7 @@
       </div>
 
       <div class="topbar-controls">
+        <span id="latencyPill" class="latency-pill" title="End-to-end API + render latency">0.0 ms</span>
         <span id="globalProvenanceBadge" class="badge-prov prov-CACHED_REAL">LOADING</span>
 
         <div class="segmented" role="group" aria-label="Instrument switcher">
@@ -28,6 +44,7 @@
           <button type="button" id="btnInstrumentSpy" data-inst="spy">SPY</button>
         </div>
 
+        <button type="button" id="btnAutoRefresh" class="btn" title="Toggle millisecond auto-refresh polling">Auto: Off</button>
         <button type="button" id="btnThemeToggle" class="btn">Light Theme</button>
         <button type="button" id="btnRefreshAll" class="btn btn-primary">Refresh Data</button>
       </div>
@@ -141,8 +158,11 @@
           <p id="tradePlanReason" style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px;"></p>
 
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button type="button" id="btnRecordSignal" class="btn btn-primary" style="flex: 1; justify-content: center;">
+            <button type="button" id="btnRecordSignal" class="btn btn-primary" style="flex: 1;">
               Record to Forward Ledger
+            </button>
+            <button type="button" id="btnRecordBias" class="btn" title="Record committee directional bias even when Risk Guardian holds NO_TRADE">
+              Log Bias Override
             </button>
             <button type="button" id="btnResimulate" class="btn">Re-Run Bootstrap</button>
           </div>
@@ -386,7 +406,7 @@
         <div class="kpi-card">
           <div class="kpi-label">Mean Realized Expectancy</div>
           <div id="lgExpR" class="kpi-val">0.00R</div>
-          <div class="kpi-sub">Conservative OHLC Stop-First Resolution</div>
+          <div id="lgExpNote" class="kpi-sub">Conservative OHLC Stop-First Resolution</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Paper Account Equity</div>
@@ -399,19 +419,55 @@
         <div class="card-header">
           <div>
             <h2 class="card-title">Forward Paper Trade Audit Ledger (Append-Only JSONL)</h2>
-            <p class="card-subtitle">Zero fabricated history. Record live signals manually from Trade Terminal to evaluate forward accuracy.</p>
+            <p class="card-subtitle">Zero fabricated history. Record committee signals or custom paper trades, evaluate MTM, or settle open rows.</p>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
-            <button type="button" id="btnLedgerRecord" class="btn btn-primary">Record Current Signal</button>
+            <button type="button" id="btnLedgerRecord" class="btn btn-primary">Record Signal / Bias</button>
+            <button type="button" id="btnLedgerEvaluate" class="btn btn-bull">Update MTM</button>
             <button type="button" id="btnLedgerClear" class="btn btn-danger">Clear Ledger</button>
           </div>
         </div>
+
+        <!-- Custom Paper Trade Entry Form -->
+        <form id="manualTradeForm" class="ledger-form">
+          <div class="form-field">
+            <label for="mfInst">Instrument</label>
+            <select id="mfInst">
+              <option value="SPX">SPX</option>
+              <option value="SPY">SPY</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="mfDir">Direction</label>
+            <select id="mfDir">
+              <option value="LONG">LONG</option>
+              <option value="SHORT">SHORT</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="mfEntry">Entry Price</label>
+            <input id="mfEntry" type="number" step="0.01" placeholder="Auto Spot" />
+          </div>
+          <div class="form-field">
+            <label for="mfStop">Stop Loss</label>
+            <input id="mfStop" type="number" step="0.01" placeholder="Auto 1.0x ATR" />
+          </div>
+          <div class="form-field">
+            <label for="mfTarget">Target (TP1)</label>
+            <input id="mfTarget" type="number" step="0.01" placeholder="Auto 1.5x ATR" />
+          </div>
+          <div class="form-field">
+            <button type="submit" class="btn btn-primary" style="width: 100%; height: 32px;">+ Log Paper Trade</button>
+          </div>
+        </form>
+
+        <div id="ledgerStatusMsg" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;"></div>
         <div id="ledgerTableContainer"></div>
       </div>
     </section>
   </div>
 
-  <script src="/static/app.js"></script>
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 </body>
 </html>

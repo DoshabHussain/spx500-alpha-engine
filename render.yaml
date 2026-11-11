@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: spx500-alpha-engine
+    runtime: python
+    plan: free
+    branch: main
+    healthCheckPath: /healthz
+    buildCommand: pip install --no-cache-dir -r requirements.txt && (python scripts/ingest_real_data.py || true) && python run_all.py
+    startCommand: python src/web/app.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: ALPHA_ADMIN_KEY
+        generateValue: true

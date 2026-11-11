@@ -11,11 +11,15 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import hmac
 import json
+import math
 import mimetypes
+import os
 import sys
 import threading
 import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -49,6 +53,49 @@ RUNS_DIR = project_root / "runs"
 MODEL_PATH = RUNS_DIR / "models" / "spx_ensemble_forecaster.joblib"
 BACKTEST_REPORT_PATH = RUNS_DIR / "latest_backtest.json"
 VALIDATION_REPORT_PATH = RUNS_DIR / "latest_validation_report.json"
+
+MAX_BODY_BYTES = 16384
+SERVER_START_TIME = time.time()
+
+
+class SlidingWindowRateLimiter:
+    """Thread-safe per-IP sliding-window rate limiter to protect public endpoints."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._buckets: Dict[str, deque] = defaultdict(deque)
+
+    def allow(self, key: str, max_requests: int, window_sec: float = 60.0) -> bool:
+        now = time.time()
+        cutoff = now - window_sec
+        with self._lock:
+            dq = self._buckets[key]
+            while dq and dq[0] < cutoff:
+                dq.popleft()
+            if len(dq) >= max_requests:
+                return False
+            dq.append(now)
+            # Bounded cleanup against memory growth
+            if len(self._buckets) > 5000:
+                stale = [k for k, v in self._buckets.items() if not v or v[-1] < cutoff]
+                for k in stale[:2000]:
+                    del self._buckets[k]
+            return True
+
+
+rate_limiter = SlidingWindowRateLimiter()
+
+
+def _parse_bounded_float(val: Any, min_val: float = 0.01, max_val: float = 100000.0) -> float:
+    num = float(val)
+    if not math.isfinite(num) or num < min_val or num > max_val:
+        raise ValueError(f"Numeric value must be finite and within [{min_val}, {max_val}].")
+    return num
+
+
+def _clean_text(val: Any, max_len: int = 120) -> str:
+    s = "".join(ch for ch in str(val or "") if ch.isprintable())
+    return s.strip()[:max_len]
 
 
 class TelemetryEngine:
@@ -469,9 +516,48 @@ def _get_cached_static(safe_rel: str) -> Optional[Dict[str, Any]]:
 
 class QuantApiHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    server_version = "SPX500-Alpha"
+    sys_version = ""
+
+    def setup(self) -> None:
+        super().setup()
+        try:
+            self.request.settimeout(15.0)
+        except Exception:
+            pass
 
     def log_message(self, format: str, *args: Any) -> None:
         pass
+
+    def _client_ip(self) -> str:
+        xff = self.headers.get("X-Forwarded-For", "")
+        if xff:
+            return xff.split(",")[0].strip()[:64]
+        return str(self.client_address[0] if self.client_address else "unknown")
+
+    def _admin_key_configured(self) -> str:
+        return os.environ.get("ALPHA_ADMIN_KEY", "").strip()
+
+    def _is_admin_authorized(self) -> bool:
+        expected = self._admin_key_configured()
+        if not expected:
+            return True
+        provided = str(self.headers.get("X-Admin-Key", "")).strip()
+        return bool(provided) and hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+    def _send_security_headers(self) -> None:
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; "
+            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        )
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
 
     def _accepts_gzip(self) -> bool:
         return "gzip" in str(self.headers.get("Accept-Encoding", "")).lower()
@@ -484,8 +570,10 @@ class QuantApiHandler(BaseHTTPRequestHandler):
         is_gzip: bool = False,
         cache_control: str = "no-store",
         etag: Optional[str] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> None:
         self.send_response(status)
+        self._send_security_headers()
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", cache_control)
         if etag:
@@ -493,15 +581,18 @@ class QuantApiHandler(BaseHTTPRequestHandler):
         if is_gzip:
             self.send_header("Content-Encoding", "gzip")
             self.send_header("Vary", "Accept-Encoding")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_json(self, payload: Any, status: int = 200) -> None:
-        raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    def _send_json(self, payload: Any, status: int = 200, extra_headers: Optional[Dict[str, str]] = None) -> None:
+        raw = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
         use_gzip = self._accepts_gzip() and len(raw) > 512
         body = gzip.compress(raw, compresslevel=5) if use_gzip else raw
-        self._send_bytes(body, "application/json; charset=utf-8", status=status, is_gzip=use_gzip)
+        self._send_bytes(body, "application/json; charset=utf-8", status=status, is_gzip=use_gzip, extra_headers=extra_headers)
 
     def _serve_static(self, rel_path: str) -> None:
         safe_rel = rel_path.lstrip("/").replace("\\", "/")
@@ -515,6 +606,7 @@ class QuantApiHandler(BaseHTTPRequestHandler):
         inm = self.headers.get("If-None-Match")
         if inm and inm.strip() == entry["etag"]:
             self.send_response(304)
+            self._send_security_headers()
             self.send_header("ETag", entry["etag"])
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -526,182 +618,282 @@ class QuantApiHandler(BaseHTTPRequestHandler):
         self._send_bytes(body, entry["ctype"], status=200, is_gzip=use_gzip, cache_control=cache_hdr, etag=entry["etag"])
 
     def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-        qs = parse_qs(parsed.query)
+        try:
+            parsed = urlparse(self.path)
+            path = parsed.path
+            qs = parse_qs(parsed.query)
 
-        if path in ("/", "/index.html"):
-            self._serve_static("index.html")
-        elif path.startswith("/static/"):
-            self._serve_static(path[len("/static/"):])
-        elif path == "/api/telemetry":
-            force = qs.get("refresh", ["0"])[0] == "1"
-            gz = self._accepts_gzip()
-            body = telemetry_engine.get_telemetry_bytes(force_refresh=force, accept_gzip=gz)
-            self._send_bytes(body, "application/json; charset=utf-8", status=200, is_gzip=gz)
-        elif path == "/api/backtest":
-            gz = self._accepts_gzip()
-            cached_bt = telemetry_engine.get_backtest_bytes(accept_gzip=gz)
-            if cached_bt is not None:
-                self._send_bytes(cached_bt, "application/json; charset=utf-8", status=200, is_gzip=gz)
+            if path == "/healthz":
+                self._send_json(
+                    {
+                        "status": "ok",
+                        "uptime_sec": round(time.time() - SERVER_START_TIME, 1),
+                        "warm": telemetry_engine._cached_payload is not None,
+                    }
+                )
+                return
+
+            if path in ("/", "/index.html"):
+                self._serve_static("index.html")
+                return
+            if path.startswith("/static/"):
+                self._serve_static(path[len("/static/"):])
+                return
+
+            ip = self._client_ip()
+            if not rate_limiter.allow(f"get:{ip}", max_requests=240, window_sec=60.0):
+                self._send_json(
+                    {"error": "Rate limit exceeded. Slow down requests."},
+                    status=429,
+                    extra_headers={"Retry-After": "60"},
+                )
+                return
+
+            if path == "/api/security/status":
+                self._send_json(
+                    {
+                        "admin_key_required": bool(self._admin_key_configured()),
+                        "authorized": self._is_admin_authorized(),
+                        "csp_strict": True,
+                        "rate_limit_enabled": True,
+                        "ephemeral_cloud_disk": bool(os.environ.get("RENDER") or os.environ.get("PORT")),
+                    }
+                )
+            elif path == "/api/telemetry":
+                force = qs.get("refresh", ["0"])[0] == "1"
+                if force and not rate_limiter.allow(f"refresh:{ip}", max_requests=6, window_sec=60.0):
+                    force = False
+                gz = self._accepts_gzip()
+                body = telemetry_engine.get_telemetry_bytes(force_refresh=force, accept_gzip=gz)
+                self._send_bytes(body, "application/json; charset=utf-8", status=200, is_gzip=gz)
+            elif path == "/api/backtest":
+                gz = self._accepts_gzip()
+                cached_bt = telemetry_engine.get_backtest_bytes(accept_gzip=gz)
+                if cached_bt is not None:
+                    self._send_bytes(cached_bt, "application/json; charset=utf-8", status=200, is_gzip=gz)
+                else:
+                    self._send_json(telemetry_engine.get_backtest_report())
+            elif path == "/api/validation":
+                self._send_json(telemetry_engine.get_validation_report())
+            elif path == "/api/gex":
+                t = telemetry_engine.get_telemetry()
+                self._send_json({"provenance": t["provenance"], "spx": t["spx"]["gex"], "spy": t["spy"]["gex"]})
+            elif path == "/api/committee":
+                t = telemetry_engine.get_telemetry()
+                self._send_json(
+                    {
+                        "provenance": t["provenance"],
+                        "consensus_signal": t["consensus_signal"],
+                        "final_actionable_signal": t["final_actionable_signal"],
+                        "consensus_score": t["consensus_score"],
+                        "probabilities": t["probabilities"],
+                        "feature_contributions": t["feature_contributions"],
+                        "agent_reasoning": t["agent_reasoning"],
+                        "debate_log": t["committee_debate_log"],
+                        "trade_plan_spx": t["spx"]["trade_plan"],
+                        "trade_plan_spy": t["spy"]["trade_plan"],
+                    }
+                )
+            elif path == "/api/ledger":
+                self._send_json(telemetry_engine.position_tracker.get_ledger_metrics())
+            elif path == "/api/ledger/export":
+                ledger_metrics = telemetry_engine.position_tracker.get_ledger_metrics()
+                lines = "\n".join(json.dumps(r, allow_nan=False) for r in ledger_metrics.get("recent_trades", []))
+                if lines:
+                    lines += "\n"
+                self._send_bytes(
+                    lines.encode("utf-8"),
+                    "application/x-ndjson; charset=utf-8",
+                    status=200,
+                    extra_headers={"Content-Disposition": 'attachment; filename="spx500_forward_ledger.jsonl"'},
+                )
+            elif path == "/api/positions":
+                t = telemetry_engine.get_telemetry()
+                self._send_json(t["positions"])
+            elif path == "/api/agents":
+                t = telemetry_engine.get_telemetry()
+                self._send_json({"agents": t["agent_reasoning"]})
             else:
-                self._send_json(telemetry_engine.get_backtest_report())
-        elif path == "/api/validation":
-            self._send_json(telemetry_engine.get_validation_report())
-        elif path == "/api/gex":
-            t = telemetry_engine.get_telemetry()
-            self._send_json(
-                {
-                    "provenance": t["provenance"],
-                    "spx": t["spx"]["gex"],
-                    "spy": t["spy"]["gex"],
-                }
-            )
-        elif path == "/api/committee":
-            t = telemetry_engine.get_telemetry()
-            self._send_json(
-                {
-                    "provenance": t["provenance"],
-                    "consensus_signal": t["consensus_signal"],
-                    "final_actionable_signal": t["final_actionable_signal"],
-                    "consensus_score": t["consensus_score"],
-                    "probabilities": t["probabilities"],
-                    "feature_contributions": t["feature_contributions"],
-                    "agent_reasoning": t["agent_reasoning"],
-                    "debate_log": t["committee_debate_log"],
-                    "trade_plan_spx": t["spx"]["trade_plan"],
-                    "trade_plan_spy": t["spy"]["trade_plan"],
-                }
-            )
-        elif path == "/api/ledger":
-            self._send_json(telemetry_engine.position_tracker.get_ledger_metrics())
-        elif path == "/api/positions":
-            t = telemetry_engine.get_telemetry()
-            self._send_json(t["positions"])
-        elif path == "/api/agents":
-            t = telemetry_engine.get_telemetry()
-            self._send_json({"agents": t["agent_reasoning"]})
-        else:
-            self._send_json({"error": "Not found"}, status=404)
+                self._send_json({"error": "Not found"}, status=404)
+        except Exception:
+            self._send_json({"error": "Internal server error"}, status=500)
 
     def do_POST(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-        length = int(self.headers.get("Content-Length", 0))
-        body_data: Dict[str, Any] = {}
-        if length > 0:
+        try:
+            parsed = urlparse(self.path)
+            path = parsed.path
+            ip = self._client_ip()
+            if not rate_limiter.allow(f"post:{ip}", max_requests=40, window_sec=60.0):
+                self._send_json(
+                    {"error": "Rate limit exceeded for write/compute requests."},
+                    status=429,
+                    extra_headers={"Retry-After": "60"},
+                )
+                return
+
             try:
-                body_data = json.loads(self.rfile.read(length).decode("utf-8"))
-            except Exception:
-                body_data = {}
+                length = int(self.headers.get("Content-Length", 0))
+            except ValueError:
+                self._send_json({"error": "Invalid Content-Length"}, status=400)
+                return
 
-        if path == "/api/simulate":
-            t = telemetry_engine.get_telemetry()
-            inst = str(body_data.get("instrument", "SPX")).upper()
-            section = t["spy"] if inst == "SPY" else t["spx"]
-            plan = section["trade_plan"]
-            direction = body_data.get("direction") or (plan["raw_direction"] if plan["raw_direction"] in ("LONG", "SHORT") else "LONG")
-            target_pct = float(body_data.get("target_pct", abs(plan["tp1"] - plan["entry"]) / max(plan["entry"], 1.0)))
-            stop_pct = float(body_data.get("stop_pct", abs(plan["entry"] - plan["stop_loss"]) / max(plan["entry"], 1.0)))
-            paths = min(10000, max(500, int(body_data.get("paths", 5000))))
+            if length < 0 or length > MAX_BODY_BYTES:
+                self._send_json({"error": f"Payload exceeds {MAX_BODY_BYTES} bytes limit."}, status=413)
+                return
 
-            snap = telemetry_engine.snapshot_service.get_snapshot()
-            hist_df = snap["spy"].get("df_history") if inst == "SPY" else snap["spx"].get("df_history")
-            seed_val = int(body_data.get("seed", int(time.time() * 1000) % 100000))
-            sim_engine = telemetry_engine.committee_agent.timemachine_agent.__class__(default_paths=paths, seed=seed_val)
-            sim = sim_engine.simulate_trade(
-                entry_price=float(section["spot"]),
-                target_pct=max(0.0005, target_pct),
-                stop_pct=max(0.0005, stop_pct),
-                horizon_bars=12,
-                paths=paths,
-                direction=direction,
-                historical_df=hist_df,
-            )
-            self._send_json(sim)
+            body_data: Dict[str, Any] = {}
+            if length > 0:
+                raw_body = self.rfile.read(length).decode("utf-8", errors="strict")
+                loaded = json.loads(raw_body)
+                if not isinstance(loaded, dict):
+                    self._send_json({"error": "JSON object expected."}, status=400)
+                    return
+                body_data = loaded
 
-        elif path == "/api/ledger/record":
-            t = telemetry_engine.get_telemetry()
-            inst = str(body_data.get("instrument", "SPX")).upper()
-            section = t["spy"] if inst == "SPY" else t["spx"]
-            plan = dict(section["trade_plan"])
-            if plan["signal"] == "NO_TRADE" and body_data.get("allow_bias", False):
-                if plan.get("raw_direction") in ("LONG", "SHORT"):
-                    plan["signal"] = plan["raw_direction"]
-                    plan["mandate"] = f"{plan.get('mandate', 'BIAS')} [Manual Override]"
+            if path == "/api/security/verify":
+                if not self._is_admin_authorized():
+                    self._send_json({"authorized": False, "error": "Invalid Admin Key."}, status=401)
                 else:
-                    # Fallback to probability sign when strictly neutral
-                    probs = t.get("probabilities", {})
-                    plan["signal"] = "LONG" if probs.get("p_up", 0.5) >= probs.get("p_down", 0.5) else "SHORT"
-                    plan["mandate"] = f"{inst} PAPER {plan['signal']} [Manual Override]"
-            res = telemetry_engine.position_tracker.record_signal(
-                plan, provenance=t["provenance"], instrument_label=inst
-            )
-            res["ledger"] = telemetry_engine.sync_ledger_into_cache()
-            self._send_json(res)
+                    self._send_json({"authorized": True})
+                return
 
-        elif path == "/api/ledger/manual":
-            t = telemetry_engine.get_telemetry()
-            inst = str(body_data.get("instrument", "SPX")).upper()
-            section = t["spy"] if inst == "SPY" else t["spx"]
-            spot = float(section["spot"])
-            direction = str(body_data.get("direction", "LONG")).upper()
-            if direction not in ("LONG", "SHORT"):
-                direction = "LONG"
-            atr = max(float(section["trade_plan"].get("atr_14", spot * 0.002)), 0.25)
-            entry = float(body_data.get("entry_price") or spot)
-            default_stop = round(entry - atr if direction == "LONG" else entry + atr, 2)
-            default_tp = round(entry + 1.5 * atr if direction == "LONG" else entry - 1.5 * atr, 2)
-            stop_px = float(body_data.get("stop") or default_stop)
-            tp_px = float(body_data.get("target") or default_tp)
-            manual_plan = {
-                "signal": direction,
-                "entry": round(entry, 2),
-                "stop_loss": round(stop_px, 2),
-                "tp1": round(tp_px, 2),
-                "tp2": round(tp_px, 2),
-                "mandate": str(body_data.get("setup") or f"MANUAL {inst} {direction}"),
-                "reason": "Logged manually from Forward Ledger drawer",
-            }
-            res = telemetry_engine.position_tracker.record_signal(
-                manual_plan, provenance=t["provenance"], instrument_label=inst
-            )
-            res["ledger"] = telemetry_engine.sync_ledger_into_cache()
-            self._send_json(res)
+            if path == "/api/simulate":
+                t = telemetry_engine.get_telemetry()
+                inst = _clean_text(body_data.get("instrument", "SPX"), 8).upper()
+                section = t["spy"] if inst == "SPY" else t["spx"]
+                plan = section["trade_plan"]
+                direction = _clean_text(
+                    body_data.get("direction") or (plan["raw_direction"] if plan["raw_direction"] in ("LONG", "SHORT") else "LONG"),
+                    12,
+                ).upper()
+                if direction not in ("LONG", "SHORT"):
+                    direction = "LONG"
+                default_tp_pct = abs(plan["tp1"] - plan["entry"]) / max(plan["entry"], 1.0)
+                default_sl_pct = abs(plan["entry"] - plan["stop_loss"]) / max(plan["entry"], 1.0)
+                target_pct = _parse_bounded_float(body_data.get("target_pct", default_tp_pct), 0.0002, 0.25)
+                stop_pct = _parse_bounded_float(body_data.get("stop_pct", default_sl_pct), 0.0002, 0.25)
+                paths = min(5000, max(200, int(body_data.get("paths", 2000))))
 
-        elif path == "/api/ledger/update":
-            trade_id = str(body_data.get("trade_id", ""))
-            action = str(body_data.get("action", "CLOSE_MARKET"))
-            t = telemetry_engine.get_telemetry()
-            inst = str(body_data.get("instrument", "SPX")).upper()
-            market_px = float(t["spy"]["spot"] if inst == "SPY" else t["spx"]["spot"])
-            exit_px = body_data.get("exit_price")
-            res = telemetry_engine.position_tracker.update_trade_action(
-                trade_id=trade_id,
-                action=action,
-                exit_price=float(exit_px) if exit_px is not None else market_px,
-                new_stop=body_data.get("new_stop"),
-                new_target=body_data.get("new_target"),
-            )
-            res["ledger"] = telemetry_engine.sync_ledger_into_cache()
-            self._send_json(res)
+                snap = telemetry_engine.snapshot_service.get_snapshot()
+                hist_df = snap["spy"].get("df_history") if inst == "SPY" else snap["spx"].get("df_history")
+                seed_val = int(body_data.get("seed", int(time.time() * 1000) % 100000)) % 1000000
+                sim_engine = telemetry_engine.committee_agent.timemachine_agent.__class__(default_paths=paths, seed=seed_val)
+                sim = sim_engine.simulate_trade(
+                    entry_price=float(section["spot"]),
+                    target_pct=target_pct,
+                    stop_pct=stop_pct,
+                    horizon_bars=12,
+                    paths=paths,
+                    direction=direction,
+                    historical_df=hist_df,
+                )
+                self._send_json(sim)
+                return
 
-        elif path == "/api/ledger/evaluate":
-            ledger = telemetry_engine.sync_ledger_into_cache()
-            t = telemetry_engine.get_telemetry()
-            self._send_json({"evaluated": True, "ledger": ledger, "positions": t.get("positions", {})})
+            # All ledger mutation endpoints require Admin Key when ALPHA_ADMIN_KEY is configured
+            if path.startswith("/api/ledger/"):
+                if not self._is_admin_authorized():
+                    self._send_json(
+                        {"error": "Admin Key required to modify the live ledger on a public deployment."},
+                        status=401,
+                    )
+                    return
 
-        elif path == "/api/ledger/clear":
-            res = telemetry_engine.position_tracker.clear_ledger()
-            res = telemetry_engine.sync_ledger_into_cache()
-            self._send_json({"cleared": True, "ledger": res})
-        else:
-            self._send_json({"error": "Not found"}, status=404)
+            if path == "/api/ledger/record":
+                t = telemetry_engine.get_telemetry()
+                inst = _clean_text(body_data.get("instrument", "SPX"), 8).upper()
+                section = t["spy"] if inst == "SPY" else t["spx"]
+                plan = dict(section["trade_plan"])
+                if plan["signal"] == "NO_TRADE" and bool(body_data.get("allow_bias", False)):
+                    if plan.get("raw_direction") in ("LONG", "SHORT"):
+                        plan["signal"] = plan["raw_direction"]
+                        plan["mandate"] = f"{plan.get('mandate', 'BIAS')} [Manual Override]"
+                    else:
+                        probs = t.get("probabilities", {})
+                        plan["signal"] = "LONG" if probs.get("p_up", 0.5) >= probs.get("p_down", 0.5) else "SHORT"
+                        plan["mandate"] = f"{inst} PAPER {plan['signal']} [Manual Override]"
+                res = telemetry_engine.position_tracker.record_signal(
+                    plan, provenance=t["provenance"], instrument_label=inst
+                )
+                res["ledger"] = telemetry_engine.sync_ledger_into_cache()
+                self._send_json(res)
+
+            elif path == "/api/ledger/manual":
+                t = telemetry_engine.get_telemetry()
+                inst = _clean_text(body_data.get("instrument", "SPX"), 8).upper()
+                if inst not in ("SPX", "SPY"):
+                    self._send_json({"error": "Instrument must be SPX or SPY."}, status=400)
+                    return
+                section = t["spy"] if inst == "SPY" else t["spx"]
+                spot = float(section["spot"])
+                direction = _clean_text(body_data.get("direction", "LONG"), 8).upper()
+                if direction not in ("LONG", "SHORT"):
+                    self._send_json({"error": "Direction must be LONG or SHORT."}, status=400)
+                    return
+                atr = max(float(section["trade_plan"].get("atr_14", spot * 0.002)), 0.25)
+                entry = _parse_bounded_float(body_data.get("entry_price") or spot, 1.0, 50000.0)
+                default_stop = round(entry - atr if direction == "LONG" else entry + atr, 2)
+                default_tp = round(entry + 1.5 * atr if direction == "LONG" else entry - 1.5 * atr, 2)
+                stop_px = _parse_bounded_float(body_data.get("stop") or default_stop, 1.0, 50000.0)
+                tp_px = _parse_bounded_float(body_data.get("target") or default_tp, 1.0, 50000.0)
+                setup_txt = _clean_text(body_data.get("setup") or f"MANUAL {inst} {direction}", 80)
+                manual_plan = {
+                    "signal": direction,
+                    "entry": round(entry, 2),
+                    "stop_loss": round(stop_px, 2),
+                    "tp1": round(tp_px, 2),
+                    "tp2": round(tp_px, 2),
+                    "mandate": setup_txt,
+                    "reason": "Logged manually from Forward Ledger drawer",
+                }
+                res = telemetry_engine.position_tracker.record_signal(
+                    manual_plan, provenance=t["provenance"], instrument_label=inst
+                )
+                res["ledger"] = telemetry_engine.sync_ledger_into_cache()
+                self._send_json(res)
+
+            elif path == "/api/ledger/update":
+                trade_id = _clean_text(body_data.get("trade_id", ""), 64)
+                action = _clean_text(body_data.get("action", "CLOSE_MARKET"), 24).upper()
+                t = telemetry_engine.get_telemetry()
+                inst = _clean_text(body_data.get("instrument", "SPX"), 8).upper()
+                market_px = float(t["spy"]["spot"] if inst == "SPY" else t["spx"]["spot"])
+                exit_raw = body_data.get("exit_price")
+                exit_px = _parse_bounded_float(exit_raw, 1.0, 50000.0) if exit_raw is not None else market_px
+                new_stop = _parse_bounded_float(body_data["new_stop"], 1.0, 50000.0) if body_data.get("new_stop") is not None else None
+                new_target = _parse_bounded_float(body_data["new_target"], 1.0, 50000.0) if body_data.get("new_target") is not None else None
+                res = telemetry_engine.position_tracker.update_trade_action(
+                    trade_id=trade_id,
+                    action=action,
+                    exit_price=exit_px,
+                    new_stop=new_stop,
+                    new_target=new_target,
+                )
+                res["ledger"] = telemetry_engine.sync_ledger_into_cache()
+                self._send_json(res)
+
+            elif path == "/api/ledger/evaluate":
+                ledger = telemetry_engine.sync_ledger_into_cache()
+                t = telemetry_engine.get_telemetry()
+                self._send_json({"evaluated": True, "ledger": ledger, "positions": t.get("positions", {})})
+
+            elif path == "/api/ledger/clear":
+                telemetry_engine.position_tracker.clear_ledger()
+                res = telemetry_engine.sync_ledger_into_cache()
+                self._send_json({"cleared": True, "ledger": res})
+            else:
+                self._send_json({"error": "Not found"}, status=404)
+        except ValueError as ve:
+            self._send_json({"error": str(ve)}, status=400)
+        except json.JSONDecodeError:
+            self._send_json({"error": "Malformed JSON payload."}, status=400)
+        except Exception:
+            self._send_json({"error": "Internal server error"}, status=500)
 
 
 def run_web_server(port: int = 8080, host: str = "127.0.0.1") -> None:
     # Pre-warm static assets + telemetry + backtest cache so browser loads complete in milliseconds
-    for name in ("index.html", "styles.css", "app.js", "vendor/lightweight-charts.standalone.production.js", "vendor/chart.umd.min.js"):
+    for name in ("index.html", "styles.css", "app.js", "theme-init.js", "vendor/lightweight-charts.standalone.production.js", "vendor/chart.umd.min.js"):
         _get_cached_static(name)
     telemetry_engine.get_backtest_report()
     telemetry_engine.get_telemetry(force_refresh=False, wait_sync=True)
@@ -711,8 +903,9 @@ def run_web_server(port: int = 8080, host: str = "127.0.0.1") -> None:
     print("=" * 72)
     print("  AURA-500 Quantitative Trading Prototype (Offline-Ready UI)")
     print(f"  Dashboard URL : http://{host}:{port}")
-    print("  Endpoints     : /api/telemetry, /api/backtest, /api/validation,")
-    print("                  /api/committee, /api/gex, /api/ledger, /api/simulate")
+    print(f"  Security Mode : CSP=strict, RateLimit=ON, AdminKeyRequired={bool(os.environ.get('ALPHA_ADMIN_KEY', '').strip())}")
+    print("  Endpoints     : /healthz, /api/telemetry, /api/backtest, /api/validation,")
+    print("                  /api/committee, /api/gex, /api/ledger, /api/ledger/export, /api/simulate")
     print("=" * 72)
     try:
         httpd.serve_forever()
@@ -722,6 +915,14 @@ def run_web_server(port: int = 8080, host: str = "127.0.0.1") -> None:
 
 
 if __name__ == "__main__":
-    port_arg = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 8080
-    host_arg = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
+    env_port = os.environ.get("PORT", "").strip()
+    if len(sys.argv) > 1 and sys.argv[1].isdigit():
+        port_arg = int(sys.argv[1])
+    elif env_port.isdigit():
+        port_arg = int(env_port)
+    else:
+        port_arg = 8080
+
+    default_host = "0.0.0.0" if env_port else "127.0.0.1"
+    host_arg = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("HOST", default_host)
     run_web_server(port=port_arg, host=host_arg)

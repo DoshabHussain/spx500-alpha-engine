@@ -3,6 +3,7 @@
 
   const SESSION_TEL_KEY = "spx500_tel_cache_v2";
   const SESSION_BT_KEY = "spx500_bt_cache_v2";
+  const SESSION_ADMIN_KEY = "spx500_admin_key";
 
   const state = {
     instrument: localStorage.getItem("spx500_inst") === "spy" ? "spy" : "spx",
@@ -11,6 +12,7 @@
     autoTimer: null,
     telemetry: null,
     backtest: null,
+    security: { admin_key_required: false, authorized: true },
     lastAgentFingerprint: "",
     lastBacktestFingerprint: "",
     charts: {
@@ -185,6 +187,8 @@
     el("btnLedgerRecord").addEventListener("click", () => recordCurrentSignal(true));
     el("btnLedgerEvaluate").addEventListener("click", evaluateOpenLedger);
     el("btnLedgerClear").addEventListener("click", clearForwardLedger);
+    const btnAdmin = el("btnAdminUnlock");
+    if (btnAdmin) btnAdmin.addEventListener("click", promptAndVerifyAdminKey);
 
     const form = el("manualTradeForm");
     if (form) {
@@ -248,10 +252,89 @@
   }
 
   // ---- Fast Networking & Instant Session Cache ----
+  function getAdminKey() {
+    try { return sessionStorage.getItem(SESSION_ADMIN_KEY) || ""; } catch (_) { return ""; }
+  }
+
+  function updateAdminUi() {
+    const btn = el("btnAdminUnlock");
+    if (!btn) return;
+    const req = Boolean(state.security && state.security.admin_key_required);
+    btn.style.display = req ? "inline-flex" : "none";
+    if (!req) return;
+    const authed = Boolean(state.security && state.security.authorized);
+    btn.textContent = authed ? "Admin Unlocked" : "Unlock Write Access";
+    btn.classList.toggle("btn-bull", authed);
+  }
+
+  async function syncSecurityStatus() {
+    try {
+      const headers = {};
+      const key = getAdminKey();
+      if (key) headers["X-Admin-Key"] = key;
+      const status = await fetchJson("/api/security/status", { headers });
+      state.security = status;
+      if (status.admin_key_required && !status.authorized && key) {
+        try { sessionStorage.removeItem(SESSION_ADMIN_KEY); } catch (_) {}
+      }
+      updateAdminUi();
+    } catch (_) {}
+  }
+
+  async function promptAndVerifyAdminKey() {
+    if (state.security && state.security.authorized && getAdminKey()) {
+      const lock = window.confirm("Admin write access is currently unlocked in this browser tab. Lock it now?");
+      if (lock) {
+        try { sessionStorage.removeItem(SESSION_ADMIN_KEY); } catch (_) {}
+        state.security.authorized = false;
+        updateAdminUi();
+        showToast("Admin write access locked for this tab.", "warn");
+      }
+      return;
+    }
+    const candidate = window.prompt("Enter ALPHA_ADMIN_KEY (from Render Environment settings) to unlock live ledger edits:");
+    if (!candidate || !candidate.trim()) return;
+    try {
+      const res = await fetch("/api/security/verify", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "X-Admin-Key": candidate.trim() },
+      });
+      if (!res.ok) {
+        try { sessionStorage.removeItem(SESSION_ADMIN_KEY); } catch (_) {}
+        state.security.authorized = false;
+        updateAdminUi();
+        showToast("Invalid Admin Key. Public read-only mode remains active.", "error");
+        return;
+      }
+      try { sessionStorage.setItem(SESSION_ADMIN_KEY, candidate.trim()); } catch (_) {}
+      state.security.authorized = true;
+      updateAdminUi();
+      showToast("Admin key verified for this session. Live ledger edits unlocked.", "success");
+    } catch (err) {
+      showToast(`Verification failed: ${err.message}`, "error");
+    }
+  }
+
   async function fetchJson(url, options = {}) {
-    const resp = await fetch(url, { cache: "no-store", ...options });
+    const mergedHeaders = { ...(options.headers || {}) };
+    const method = (options.method || "GET").toUpperCase();
+    const key = getAdminKey();
+    if (key && !mergedHeaders["X-Admin-Key"]) {
+      mergedHeaders["X-Admin-Key"] = key;
+    }
+    const resp = await fetch(url, { cache: "no-store", ...options, headers: mergedHeaders });
     if (!resp.ok) {
       const txt = await resp.text();
+      if (resp.status === 401 && method === "POST") {
+        try { sessionStorage.removeItem(SESSION_ADMIN_KEY); } catch (_) {}
+        if (state.security) {
+          state.security.admin_key_required = true;
+          state.security.authorized = false;
+          updateAdminUi();
+        }
+        throw new Error("Admin Key required. Click 'Unlock Write Access' in the header or Forward Ledger.");
+      }
       throw new Error(`HTTP ${resp.status} from ${url}: ${txt.slice(0, 160)}`);
     }
     return resp.json();
@@ -1144,6 +1227,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     initControls();
     hydrateFromSessionCache();
+    syncSecurityStatus();
     loadAllData(false);
   });
 })();

@@ -298,3 +298,104 @@ def test_ledger_crud_per_instrument_and_millisecond_cache(tmp_path):
     assert elapsed_ms < 50.0
 
 
+def test_security_hardening_headers_auth_and_ratelimit(monkeypatch):
+    """Verify strict CSP, zero inline scripts, public GET transparency, Admin Key write lock, and input guards."""
+    import io
+    import json
+    from types import SimpleNamespace
+    from src.web.app import (
+        QuantApiHandler,
+        SlidingWindowRateLimiter,
+        _get_cached_static,
+        _parse_bounded_float,
+    )
+
+    # 1. Input guard & rate limiter unit assertions
+    with pytest.raises(ValueError):
+        _parse_bounded_float(float("nan"), 0.0, 10.0)
+    with pytest.raises(ValueError):
+        _parse_bounded_float(float("inf"), 0.0, 10.0)
+    with pytest.raises(ValueError):
+        _parse_bounded_float(25.0, 0.0, 10.0)
+    assert _parse_bounded_float(5.5, 0.0, 10.0) == 5.5
+
+    limiter = SlidingWindowRateLimiter()
+    assert limiter.allow("test-ip", max_requests=2, window_sec=60.0) is True
+    assert limiter.allow("test-ip", max_requests=2, window_sec=60.0) is True
+    assert limiter.allow("test-ip", max_requests=2, window_sec=60.0) is False
+
+    # 2. Zero inline scripts in HTML & theme-init.js pre-cached
+    html_entry = _get_cached_static("index.html")
+    js_init = _get_cached_static("theme-init.js")
+    assert html_entry is not None and js_init is not None
+    html_text = html_entry["raw"].decode("utf-8")
+    assert "<script>" not in html_text
+    assert "/static/theme-init.js" in html_text
+
+    # 3. Hermetic in-memory HTTP dispatch through QuantApiHandler
+    class _MemSocket:
+        def __init__(self, raw_request: bytes) -> None:
+            self._r = io.BytesIO(raw_request)
+            self._w = io.BytesIO()
+
+        def makefile(self, mode: str, *_args, **_kwargs):
+            return self._r if "r" in mode else self._w
+
+        def settimeout(self, _t: float) -> None:
+            pass
+
+        def sendall(self, data: bytes) -> None:
+            self._w.write(data)
+
+        def close(self) -> None:
+            pass
+
+    def _dispatch(method: str, path: str, headers: dict | None = None, body: bytes = b""):
+        hdrs = {"Host": "localhost", "Connection": "close"}
+        if body:
+            hdrs["Content-Length"] = str(len(body))
+        if headers:
+            hdrs.update(headers)
+        head = f"{method} {path} HTTP/1.1\r\n" + "".join(f"{k}: {v}\r\n" for k, v in hdrs.items()) + "\r\n"
+        sock = _MemSocket(head.encode("utf-8") + body)
+        QuantApiHandler(sock, ("127.0.0.1", 12345), SimpleNamespace(server_name="localhost", server_port=8080))
+        raw_resp = sock._w.getvalue()
+        raw_head, _, raw_body = raw_resp.partition(b"\r\n\r\n")
+        lines = raw_head.decode("iso-8859-1").split("\r\n")
+        status_code = int(lines[0].split()[1])
+        resp_headers = {k.strip(): v.strip() for k, v in (line.split(":", 1) for line in lines[1:] if ":" in line)}
+        return status_code, resp_headers, raw_body
+
+    monkeypatch.setenv("ALPHA_ADMIN_KEY", "test-render-admin-secret")
+
+    # /healthz + security headers
+    status, hdrs, _ = _dispatch("GET", "/healthz")
+    assert status == 200
+    csp = hdrs.get("Content-Security-Policy", "")
+    assert "script-src 'self'" in csp
+    assert "'unsafe-inline'" not in csp.split("script-src")[1].split(";")[0]
+    assert hdrs.get("X-Frame-Options") == "DENY"
+    assert hdrs.get("X-Content-Type-Options") == "nosniff"
+    assert hdrs.get("Referrer-Policy") == "no-referrer"
+
+    # Public ledger GET stays open even when Admin Key is set
+    status, _, _ = _dispatch("GET", "/api/ledger")
+    assert status == 200
+
+    # Unauthorized POST to ledger must return 401
+    status, _, _ = _dispatch("POST", "/api/ledger/clear", headers={"Content-Type": "application/json"}, body=b"{}")
+    assert status == 401
+
+    # Verify endpoint accepts valid ALPHA_ADMIN_KEY
+    status, _, body_bytes = _dispatch(
+        "POST",
+        "/api/security/verify",
+        headers={"Content-Type": "application/json", "X-Admin-Key": "test-render-admin-secret"},
+        body=b"{}",
+    )
+    assert status == 200
+    assert json.loads(body_bytes.decode("utf-8"))["authorized"] is True
+
+
+
+

@@ -4,14 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SPX500 Alpha Engine — Quantitative Trading Workbench</title>
-  <script>
-    (function(){
-      try {
-        var t = localStorage.getItem("spx500_theme");
-        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
-      } catch (e) {}
-    })();
-  </script>
+  <script src="/static/theme-init.js"></script>
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="/static/vendor/lightweight-charts.standalone.production.js" defer></script>
   <script src="/static/vendor/chart.umd.min.js" defer></script>
@@ -525,6 +518,8 @@
           </div>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
+            <button type="button" id="btnAdminUnlock" class="btn" style="display: none;">Unlock Write Access</button>
+            <a class="btn" href="/api/ledger/export" download="spx500_forward_ledger.jsonl" style="text-decoration: none;">Export JSONL</a>
             <button type="button" id="btnLedgerRecord" class="btn btn-primary">Record Signal / Bias</button>
             <button type="button" id="btnLedgerEvaluate" class="btn btn-bull">Update MTM</button>
             <button type="button" id="btnLedgerClear" class="btn btn-danger">Clear Ledger</button>

@@ -25,63 +25,150 @@
   </div>
 
   <div class="app-shell">
-    <!-- Top Header -->
+    <!-- Top Editorial Navigation Bar -->
     <header class="topbar">
       <div class="brand-group">
-        <div class="brand-logo">SPX</div>
+        <div class="brand-logo">&alpha;</div>
         <div>
-          <h1 class="brand-title">SPX500 Alpha Engine</h1>
-          <p class="brand-subtitle">Intraday 30m Horizon Quantitative Workbench &amp; Autonomous Agent Pipeline</p>
+          <h1 class="brand-title">SPX500</h1>
+          <p class="brand-subtitle">ALPHA ENGINE</p>
         </div>
       </div>
 
+      <nav class="tab-nav" aria-label="Primary sections">
+        <button type="button" class="tab-btn active" data-tab="terminal">Trade terminal</button>
+        <button type="button" class="tab-btn" data-tab="evidence">Model evidence</button>
+        <button type="button" class="tab-btn" data-tab="market">Market &amp; GEX</button>
+        <button type="button" class="tab-btn" data-tab="ledger">Forward ledger</button>
+      </nav>
+
       <div class="topbar-controls">
         <span id="latencyPill" class="latency-pill" title="End-to-end API + render latency">0.0 ms</span>
-        <span id="globalProvenanceBadge" class="badge-prov prov-CACHED_REAL">LOADING</span>
+        <button type="button" id="btnAutoRefresh" class="btn" title="Toggle auto-refresh polling">Auto: Off</button>
+        <button type="button" id="btnThemeToggle" class="btn">Light Theme</button>
+        <button type="button" id="btnRefreshAll" class="btn btn-ivory">Refresh data</button>
+      </div>
+    </header>
 
+    <!-- Editorial Hero + Animated Isometric 3D Candlestick Sculpture -->
+    <section class="hero-banner">
+      <div>
+        <p class="hero-eyebrow">Market intelligence, with dimension</p>
+        <h2 class="hero-headline">A clearer view.<br />A calmer decision.</h2>
+        <p class="hero-copy">Intraday 30m horizon · Quantitative workbench &amp; autonomous agent pipeline</p>
+      </div>
+
+      <div class="hero-controls-col">
         <div class="segmented" role="group" aria-label="Instrument switcher">
           <button type="button" id="btnInstrumentSpx" class="active" data-inst="spx">SPX</button>
           <button type="button" id="btnInstrumentSpy" data-inst="spy">SPY</button>
         </div>
-
-        <button type="button" id="btnAutoRefresh" class="btn" title="Toggle millisecond auto-refresh polling">Auto: Off</button>
-        <button type="button" id="btnThemeToggle" class="btn">Light Theme</button>
-        <button type="button" id="btnRefreshAll" class="btn btn-primary">Refresh Data</button>
+        <span id="globalProvenanceBadge" class="badge-prov prov-CACHED_REAL">LOADING</span>
+        <div>
+          <div class="snapshot-meta-label">Reference Snapshot</div>
+          <div id="stripProvenanceDetail" class="snapshot-meta-date">Initializing telemetry...</div>
+        </div>
       </div>
-    </header>
 
-    <!-- Status & Macro Strip -->
-    <div class="status-bar">
-      <div class="macro-strip">
-        <span class="macro-item">Spot: <strong id="stripSpot" class="num">--</strong></span>
-        <span class="macro-item">Day Chg: <strong id="stripChange" class="num">--</strong></span>
-        <span class="macro-item">VIX: <strong id="stripVix" class="num">--</strong></span>
-        <span class="macro-item">US10Y: <strong id="stripUs10y" class="num">--</strong></span>
-        <span class="macro-item">DXY: <strong id="stripDxy" class="num">--</strong></span>
-        <span class="macro-item">Net GEX: <strong id="stripGex" class="num">--</strong></span>
+      <div class="hero-sculpture-wrap" aria-hidden="true">
+        <svg class="pillar-stage" viewBox="0 0 260 190" fill="none">
+          <defs>
+            <linearGradient id="creamFace" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f7f3ed" />
+              <stop offset="100%" stop-color="#cfc6bc" />
+            </linearGradient>
+            <linearGradient id="peachFace" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f4ac94" />
+              <stop offset="100%" stop-color="#cf765c" />
+            </linearGradient>
+            <linearGradient id="sageFace" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#bce8d2" />
+              <stop offset="100%" stop-color="#76ae92" />
+            </linearGradient>
+            <radialGradient id="baseDisc" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#352f3a" />
+              <stop offset="100%" stop-color="#1d1921" />
+            </radialGradient>
+          </defs>
+
+          <!-- Base Platform -->
+          <ellipse cx="132" cy="154" rx="84" ry="20" fill="url(#baseDisc)" stroke="rgba(243,239,233,0.1)" />
+          <ellipse cx="132" cy="149" rx="78" ry="16" fill="#28232d" />
+
+          <!-- Bar 1 (Left Peach) -->
+          <g class="pillar-bar">
+            <path d="M62 82 L80 74 L98 82 L98 134 L80 142 L62 134 Z" fill="url(#peachFace)" />
+            <path d="M62 82 L80 90 L98 82 L80 74 Z" fill="#f7beaa" />
+            <path d="M62 82 L80 90 L80 142 L62 134 Z" fill="rgba(20,16,20,0.16)" />
+          </g>
+
+          <!-- Bar 2 (Back Tall Cream) -->
+          <g class="pillar-bar pillar-bar-2">
+            <path d="M100 32 L120 24 L140 32 L140 124 L120 132 L100 124 Z" fill="url(#creamFace)" />
+            <path d="M100 32 L120 40 L140 32 L120 24 Z" fill="#ffffff" />
+            <path d="M100 32 L120 40 L120 132 L100 124 Z" fill="rgba(20,16,20,0.14)" />
+          </g>
+
+          <!-- Bar 3 (Front Terracotta) -->
+          <g class="pillar-bar pillar-bar-3">
+            <path d="M116 68 L136 60 L156 68 L156 144 L136 152 L116 144 Z" fill="url(#peachFace)" />
+            <path d="M116 68 L136 76 L156 68 L136 60 Z" fill="#f8c2b0" />
+            <path d="M116 68 L136 76 L136 152 L116 144 Z" fill="rgba(20,16,20,0.18)" />
+          </g>
+
+          <!-- Bar 4 (Right Tall Sage) -->
+          <g class="pillar-bar pillar-bar-4">
+            <path d="M158 46 L178 38 L198 46 L198 134 L178 142 L158 134 Z" fill="url(#sageFace)" />
+            <path d="M158 46 L178 54 L198 46 L178 38 Z" fill="#d9f4e6" />
+            <path d="M158 46 L178 54 L178 142 L158 134 Z" fill="rgba(20,16,20,0.14)" />
+          </g>
+
+          <!-- Orbital Peach Ring -->
+          <ellipse class="orbit-ring" cx="132" cy="96" rx="106" ry="28" stroke="#ef9c82" stroke-opacity="0.45" stroke-width="1.2" />
+        </svg>
       </div>
-      <div class="mono" id="stripProvenanceDetail">Initializing telemetry...</div>
-    </div>
+    </section>
+
+    <!-- 4 Hero Macro & Instrument KPI Bento Cards -->
+    <section class="hero-kpi-grid" aria-label="Live market overview">
+      <div class="hero-kpi-card">
+        <div id="kpiSpotLabel" class="kpi-label">SPX SPOT</div>
+        <div id="stripSpot" class="kpi-val">--</div>
+        <div id="stripChange" class="kpi-sub">--</div>
+      </div>
+      <div class="hero-kpi-card">
+        <div class="kpi-label">VOLATILITY / VIX</div>
+        <div id="stripVix" class="kpi-val">--</div>
+        <div class="kpi-sub">CBOE volatility index</div>
+      </div>
+      <div class="hero-kpi-card">
+        <div class="kpi-label">US 10Y YIELD</div>
+        <div id="stripUs10y" class="kpi-val">--</div>
+        <div id="stripDxySub" class="kpi-sub">Treasury yield · DXY --</div>
+      </div>
+      <div class="hero-kpi-card">
+        <div class="kpi-label">NET DEALER GAMMA</div>
+        <div id="stripGex" class="kpi-val">--</div>
+        <div id="stripGexRegime" class="kpi-sub">Option gamma regime</div>
+      </div>
+    </section>
 
     <div id="globalErrorBanner" class="error-banner"></div>
 
-    <!-- Navigation Tabs -->
-    <nav class="tab-nav" aria-label="Primary sections">
-      <button type="button" class="tab-btn active" data-tab="terminal">Trade Terminal</button>
-      <button type="button" class="tab-btn" data-tab="evidence">Model Evidence</button>
-      <button type="button" class="tab-btn" data-tab="market">Market &amp; GEX</button>
-      <button type="button" class="tab-btn" data-tab="ledger">Forward Ledger</button>
-    </nav>
-
     <!-- TAB 1: TRADE TERMINAL -->
     <section id="tab-terminal" class="tab-panel active">
+      <div class="section-bar">
+        <h2>Trade terminal</h2>
+        <span id="sectionMetaLabel" class="section-bar-meta">SPX / 5 MIN</span>
+      </div>
+
       <div class="grid-terminal-top">
         <!-- Candlestick Price & Trade Levels Chart -->
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title" id="chartTitle">SPX 5-Minute Session &amp; Execution Levels</h2>
-              <p class="card-subtitle" id="chartSubtitle">OHLC Candlesticks, VWAP, Entry, Stop Loss, TP1 &amp; TP2</p>
+              <h3 class="card-title" id="chartTitle">Session &amp; execution levels</h3>
+              <p class="card-subtitle" id="chartSubtitle">OHLC candlesticks · VWAP · Entry, stop &amp; targets</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
           </div>
@@ -92,8 +179,8 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Actionable Trade Plan</h2>
-              <p class="card-subtitle">8-Agent Consensus &amp; Empirical Conformal Bounds</p>
+              <h3 class="card-title">Actionable trade plan</h3>
+              <p class="card-subtitle">8-agent consensus · Empirical conformal bounds</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
           </div>
@@ -115,15 +202,15 @@
               <div id="lvlEntry" class="level-value num">--</div>
             </div>
             <div class="level-box">
-              <div class="level-label">Stop Loss (1.0x ATR)</div>
+              <div class="level-label">Stop Loss</div>
               <div id="lvlStop" class="level-value num" style="color: var(--bear);">--</div>
             </div>
             <div class="level-box">
-              <div class="level-label">Target 1 (1.5x ATR)</div>
+              <div class="level-label">Target 1</div>
               <div id="lvlTp1" class="level-value num" style="color: var(--bull);">--</div>
             </div>
             <div class="level-box">
-              <div class="level-label">Target 2 (2.5x ATR)</div>
+              <div class="level-label">Target 2</div>
               <div id="lvlTp2" class="level-value num" style="color: var(--bull);">--</div>
             </div>
             <div class="level-box">
@@ -175,7 +262,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Empirical Bootstrap Path Fan (TimeMachine Agent)</h2>
+              <h3 class="card-title">Empirical Bootstrap Path Fan (TimeMachine Agent)</h3>
               <p id="tmSummarySubtitle" class="card-subtitle">Historical 5m OHLC Return Bootstrap · P5 / P25 / P50 / P75 / P95</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
@@ -188,7 +275,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Model Feature Contributions (LightGBM TreeSHAP)</h2>
+              <h3 class="card-title">Model Feature Contributions (LightGBM TreeSHAP)</h3>
               <p id="shapSubtitle" class="card-subtitle">Exact additive log-odds drivers on current market bar</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
@@ -203,7 +290,7 @@
       <div class="card mb-16">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Autonomous Agent Planning Pipeline &amp; Decision Basis (8 Steps)</h2>
+            <h3 class="card-title">Autonomous Agent Planning Pipeline &amp; Decision Basis (8 Steps)</h3>
             <p class="card-subtitle">Inspect each agent's live inputs, quantitative rule basis, vote, weight, and output rationale</p>
           </div>
           <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
@@ -215,7 +302,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Committee Chronological Deliberation Log</h2>
+            <h3 class="card-title">Committee Chronological Deliberation Log</h3>
             <p class="card-subtitle">Step-by-step trace synthesized by MasterTriEngineAgent</p>
           </div>
           <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
@@ -226,6 +313,11 @@
 
     <!-- TAB 2: MODEL EVIDENCE -->
     <section id="tab-evidence" class="tab-panel">
+      <div class="section-bar">
+        <h2>Model evidence</h2>
+        <span class="section-bar-meta">CHRONOLOGICAL 70/30 SPLIT</span>
+      </div>
+
       <div class="grid-4 mb-16">
         <div class="kpi-card">
           <div class="kpi-label">Hold-Out Strategy Return</div>
@@ -253,7 +345,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Hold-Out Equity Curve vs Buy &amp; Hold Benchmark</h2>
+              <h3 class="card-title">Hold-Out Equity Curve vs Buy &amp; Hold Benchmark</h3>
               <p class="card-subtitle" id="evHoldoutWindow">Untouched chronological 30% hold-out (5.0 bps slippage + commission)</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
@@ -266,7 +358,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Underwater Drawdown Curve (%)</h2>
+              <h3 class="card-title">Underwater Drawdown Curve (%)</h3>
               <p class="card-subtitle">Peak-to-trough fixed-grid drawdown on 30% chronological hold-out</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
@@ -281,7 +373,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Probability Calibration Reliability Curve</h2>
+              <h3 class="card-title">Probability Calibration Reliability Curve</h3>
               <p id="evBrierSubtitle" class="card-subtitle">Brier Score: -- · ECE: --</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
@@ -294,7 +386,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Hold-Out 3x3 Confusion Matrix</h2>
+              <h3 class="card-title">Hold-Out 3x3 Confusion Matrix</h3>
               <p class="card-subtitle">Rows: True Label (Down / Flat / Up) · Columns: Predicted Label</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
@@ -306,7 +398,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Baseline Comparisons &amp; Statistical Hypothesis Tests</h2>
+            <h3 class="card-title">Baseline Comparisons &amp; Statistical Hypothesis Tests</h3>
             <p class="card-subtitle">Model evaluated against Always-Flat Majority Baseline and Rolling Momentum Baseline</p>
           </div>
           <span class="badge-prov prov-CACHED_REAL" data-ev-prov>CACHED_REAL</span>
@@ -329,6 +421,11 @@
 
     <!-- TAB 3: MARKET & GEX -->
     <section id="tab-market" class="tab-panel">
+      <div class="section-bar">
+        <h2>Market &amp; GEX</h2>
+        <span class="section-bar-meta">CBOE OPTION MICROSTRUCTURE</span>
+      </div>
+
       <div class="grid-4 mb-16">
         <div class="kpi-card">
           <div class="kpi-label">Net Dealer Gamma (GEX)</div>
@@ -356,7 +453,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title" id="gexChartTitle">Dealer Gamma Exposure by Strike ($M)</h2>
+              <h3 class="card-title" id="gexChartTitle">Dealer Gamma Exposure by Strike ($M)</h3>
               <p class="card-subtitle">Cboe Delayed Option Chain Call GEX, Put GEX &amp; Net GEX around Spot</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
@@ -369,7 +466,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2 class="card-title">Cross-Asset Intermarket Matrix &amp; Critic Checks</h2>
+              <h3 class="card-title">Cross-Asset Intermarket Matrix &amp; Critic Checks</h3>
               <p class="card-subtitle">VIX Volatility, US 10Y Treasury Yield, DXY Dollar Index &amp; Event Risk</p>
             </div>
             <span class="badge-prov prov-CACHED_REAL" data-prov-slot>CACHED_REAL</span>
@@ -381,7 +478,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Market News &amp; Catalyst Sentiment Feed</h2>
+            <h3 class="card-title">Market News &amp; Catalyst Sentiment Feed</h3>
             <p class="card-subtitle">Real Yahoo Finance RSS headlines scored against index keywords (or labeled DEMO offline)</p>
           </div>
           <span id="newsProvBadge" class="badge-prov prov-DEMO">DEMO</span>
@@ -392,6 +489,11 @@
 
     <!-- TAB 4: FORWARD LEDGER -->
     <section id="tab-ledger" class="tab-panel">
+      <div class="section-bar">
+        <h2>Forward ledger</h2>
+        <span class="section-bar-meta">APPEND-ONLY JSONL AUDIT</span>
+      </div>
+
       <div class="grid-4 mb-16">
         <div class="kpi-card">
           <div class="kpi-label">Recorded Signals</div>
@@ -418,7 +520,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Forward Paper Trade Audit Ledger (Append-Only JSONL)</h2>
+            <h3 class="card-title">Forward Paper Trade Audit Ledger (Append-Only JSONL)</h3>
             <p class="card-subtitle">Zero fabricated history. Record committee signals or custom paper trades, evaluate MTM, or settle open rows.</p>
           </div>
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">

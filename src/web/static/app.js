@@ -68,6 +68,8 @@
       bull: cssVar("--bull"),
       bear: cssVar("--bear"),
       accent: cssVar("--accent-primary"),
+      ivory: cssVar("--accent-ivory"),
+      vwap: cssVar("--chart-vwap"),
       warn: cssVar("--warn"),
       neutral: cssVar("--neutral"),
       bg: cssVar("--bg-surface-solid"),
@@ -493,21 +495,32 @@
     );
 
     const chgColor = instData.change_pts >= 0 ? "var(--bull)" : "var(--bear)";
+    const kpiLbl = el("kpiSpotLabel");
+    if (kpiLbl) kpiLbl.textContent = `${instKey.toUpperCase()} SPOT`;
+    const metaLbl = el("sectionMetaLabel");
+    if (metaLbl) metaLbl.textContent = `${instKey.toUpperCase()} / 5 MIN`;
+
     const spotEl = el("stripSpot");
-    const nextSpot = `${instKey.toUpperCase()} ${fmtNum(instData.spot)}`;
+    const nextSpot = fmtNum(instData.spot);
     if (spotEl.textContent !== nextSpot) {
       spotEl.textContent = nextSpot;
       flashElement(spotEl);
     }
+    spotEl.style.color = chgColor;
     el("stripChange").textContent = `${fmtSigned(instData.change_pts)} (${fmtSigned(instData.change_pct, 2, "%")})`;
     el("stripChange").style.color = chgColor;
 
     const macro = t.macro || {};
     el("stripVix").textContent = fmtNum(macro.vix);
     el("stripUs10y").textContent = `${fmtNum(macro.us10y, 3)}%`;
-    el("stripDxy").textContent = fmtNum(macro.dxy, 3);
+    const dxySub = el("stripDxySub");
+    if (dxySub) dxySub.textContent = `Treasury yield · DXY ${fmtNum(macro.dxy, 3)}`;
     const gex = instData.gex || {};
-    el("stripGex").textContent = `${fmtSigned(gex.net_gex_total_b, 3, "B")}`;
+    const gexEl = el("stripGex");
+    gexEl.textContent = `${fmtSigned(gex.net_gex_total_b, 3, "B")}`;
+    gexEl.style.color = Number(gex.net_gex_total_b || 0) >= 0 ? "var(--bull)" : "var(--bear)";
+    const gexReg = el("stripGexRegime");
+    if (gexReg) gexReg.textContent = gex.gamma_regime ? String(gex.gamma_regime).replaceAll("_", " ").toLowerCase() : "Option gamma regime";
 
     renderHeroTradeCard(instKey, instData, t);
     renderTradingViewChart(instKey, instData);
@@ -578,7 +591,7 @@
       });
 
       state.charts.vwapSeries = chart.addLineSeries({
-        color: c.accent,
+        color: c.vwap,
         lineWidth: 2,
         title: "VWAP",
       });
@@ -586,7 +599,7 @@
       const volSeries = chart.addHistogramSeries({
         priceFormat: { type: "volume" },
         priceScaleId: "",
-        color: "rgba(100, 116, 139, 0.35)",
+        color: "rgba(155, 147, 160, 0.25)",
       });
       volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
       state.charts.volumeSeries = volSeries;
@@ -598,6 +611,13 @@
         timeScale: { borderColor: c.grid },
         rightPriceScale: { borderColor: c.grid },
       });
+      state.charts.candleSeries.applyOptions({
+        upColor: c.bull,
+        downColor: c.bear,
+        wickUpColor: c.bull,
+        wickDownColor: c.bear,
+      });
+      state.charts.vwapSeries.applyOptions({ color: c.vwap });
     }
 
     const rawCandles = Array.isArray(instData.candles) ? instData.candles : [];
@@ -621,7 +641,7 @@
       clean.map((x) => ({
         time: x.time,
         value: Number(x.volume || 0),
-        color: x.close >= x.open ? "rgba(16, 185, 129, 0.28)" : "rgba(239, 68, 68, 0.28)",
+        color: x.close >= x.open ? "rgba(163, 217, 189, 0.24)" : "rgba(239, 156, 130, 0.24)",
       }))
     );
 
@@ -685,11 +705,11 @@
       data: {
         labels: steps,
         datasets: [
-          { label: "P95", data: fan.p95 || [], borderColor: "rgba(16, 185, 129, 0.55)", borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
-          { label: "P75", data: fan.p75 || [], borderColor: c.bull, backgroundColor: "rgba(16, 185, 129, 0.14)", borderWidth: 1.5, pointRadius: 0, fill: "+1" },
-          { label: "P50 (Median)", data: fan.p50 || [], borderColor: c.accent, borderWidth: 2.5, pointRadius: 2, fill: false },
-          { label: "P25", data: fan.p25 || [], borderColor: c.warn, backgroundColor: "rgba(239, 68, 68, 0.10)", borderWidth: 1.5, pointRadius: 0, fill: "-1" },
-          { label: "P5", data: fan.p5 || [], borderColor: "rgba(239, 68, 68, 0.65)", borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+          { label: "P95", data: fan.p95 || [], borderColor: "rgba(163, 217, 189, 0.55)", borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
+          { label: "P75", data: fan.p75 || [], borderColor: c.bull, backgroundColor: "rgba(163, 217, 189, 0.14)", borderWidth: 1.5, pointRadius: 0, fill: "+1" },
+          { label: "P50 (Median)", data: fan.p50 || [], borderColor: c.ivory, borderWidth: 2.5, pointRadius: 2, fill: false },
+          { label: "P25", data: fan.p25 || [], borderColor: c.warn, backgroundColor: "rgba(239, 156, 130, 0.12)", borderWidth: 1.5, pointRadius: 0, fill: "-1" },
+          { label: "P5", data: fan.p5 || [], borderColor: "rgba(239, 156, 130, 0.65)", borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, fill: false },
         ],
       },
       options: {
@@ -870,7 +890,7 @@
           label: "Drawdown (%)",
           data: strat.drawdown_curve || [],
           borderColor: c.bear,
-          backgroundColor: "rgba(239, 68, 68, 0.16)",
+          backgroundColor: "rgba(239, 156, 130, 0.16)",
           fill: true,
           borderWidth: 1.5,
           pointRadius: 0,
